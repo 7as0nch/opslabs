@@ -1,0 +1,54 @@
+# Generated with protoc-gen-openapi
+# https://github.com/google/gnostic/tree/master/cmd/protoc-gen-openapi
+
+openapi: 3.0.3
+info:
+    title: BetaApplication API
+    version: 0.0.1
+paths:
+    /beta/applications:
+        post:
+            tags:
+                - BetaApplication
+            operationId: BetaApplication_CreateApplication
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/base.CreateBetaApplicationRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/base.CreateBetaApplicationReply'
+components:
+    schemas:
+        base.CreateBetaApplicationReply:
+            type: object
+            properties:
+                id:
+                    type: string
+                status:
+                    type: string
+                mailStatus:
+                    type: string
+        base.CreateBetaApplicationRequest:
+            type: object
+            properties:
+                productInterest:
+                    type: string
+                contactType:
+                    type: string
+                contactValue:
+                    type: string
+                useCase:
+                    type: string
+                note:
+                    type: string
+                sourcePage:
+                    type: string
+tags:
+    - name: BetaApplication

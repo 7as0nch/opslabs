@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package base;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/example/aichat/backend/api;base";
+option java_multiple_files = true;
+option java_package = "dev.kratos.api.base";
+option java_outer_classname = "TrackerProto";
+
+// The tracker service definition.
+service Tracker {
+    // Batch 批量新增埋点数据
+    rpc Batch (BatchRequest) returns (BatchReply) {
+        option (google.api.http) = {
+            post: "/tracker/batch"
+            body: "*"
+        };
+    }
+
+    // List 分页查询埋点数据
+    rpc List (ListRequest) returns (ListReply) {
+        option (google.api.http) = {
+            get: "/tracker/list"
+        };
+    }
+}
+
+// Tracker 埋点数据消息
+message TrackerMessage {
+    // 应用ID
+    string appId = 1;
+    // 设备ID
+    string deviceId = 2;
+    // 用户ID
+    int64 userId = 3;
+    // 时间戳
+    string timestamp = 4;
+    // 用户代理
+    string userAgent = 5;
+    // 页面URL
+    string pageUrl = 6;
+    // 类型
+    string type = 7;
+    // 数据
+    string data = 8;
+}
+
+// BatchRequest 批量新增请求
+message BatchRequest {
+    // 埋点数据列表
+    repeated TrackerMessage logs = 1;
+}
+
+// BatchReply 批量新增响应
+message BatchReply {
+    // 成功数量
+    int32 successCount = 1;
+    // 失败数量
+    int32 failedCount = 2;
+}
+
+// ListRequest 分页查询请求
+message ListRequest {
+    // 页码
+    int32 pageNum = 1;
+    // 每页数量
+    int32 pageSize = 2;
+    // 应用ID
+    string appId = 3;
+    // 设备ID
+    string deviceId = 4;
+    // 用户ID
+    int64 userId = 5;
+    // 类型
+    string type = 6;
+    // 页面URL
+    string pageUrl = 7;
+    // 开始时间
+    string startTime = 8;
+    // 结束时间
+    string endTime = 9;
+}
+
+// ListReply 分页查询响应
+message ListReply {
+    // 埋点数据列表
+    repeated TrackerMessage list = 1;
+    // 总数量
+    int32 total = 2;
+}

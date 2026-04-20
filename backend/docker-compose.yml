@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  aichat-backend:
+    image: aichat-backend:latest
+    container_name: aichat-backend
+    restart: unless-stopped
+    ports:
+      - "6039:6039"  # HTTP端口
+      - "9000:9000"  # gRPC端口
+    volumes:
+      - /root/workspace/conf:/data/conf  # 配置文件映射
+      - /root/workspace/logs:/app/logs  # 日志文件映射
+    environment:
+      - TZ=Asia/Shanghai  # 设置时区
+    command: ["./backend", "-conf", "/data/conf/config.yaml"]

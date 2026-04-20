@@ -1,0 +1,150 @@
+syntax = "proto3";
+
+package base;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/example/aichat/backend/api;base";
+import "google/protobuf/empty.proto";
+option java_multiple_files = true;
+option java_package = "dev.kratos.api.base";
+option java_outer_classname = "BaseProto";
+// import "openapi/v3/annotations.proto";
+
+// option (openapi.v3.document) = {
+//   info: {title: "基础-医嘱合并管理";
+//     version: "1.0";
+//     contact: {
+//       name:
+//           "成江";
+//       email:
+//           "chengjiang@buffalo-robot.com";
+//     };
+//   }
+//   ;
+// }
+// ;
+
+// The chat service definition.
+service Auth {
+  // Login
+  rpc Login (LoginRequest) returns (LoginReply) {
+    option (google.api.http) = {
+      post: "/auth/login"
+      body: "*"
+    };
+  }
+
+  // getInfo
+  rpc GetInfo (google.protobuf.Empty) returns (GetInfoReply) {
+    option (google.api.http) = {
+      get: "/auth/user/info"
+    };
+  }
+
+  rpc Logout (google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/auth/logout"
+      body: "*"
+    };
+  }
+
+  // Register
+  rpc Register (RegisterRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/auth/user/register"
+      body: "*"
+    };
+  }
+
+  // /user/profile
+  rpc GetProfile (google.protobuf.Empty) returns (GetInfoReply) {
+    option (google.api.http) = {
+      get: "/auth/user/profile"
+    };
+  }
+
+  // /user/profile
+  rpc UpdateProfile (User) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      put: "/auth/user/profile"
+      body: "*"
+    };
+  }
+  // /user/profile/updatePwd
+  rpc UpdatePwd (UpdatePwdRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      put: "/auth/user/profile/updatePwd"
+      body: "*"
+    };
+  }
+}
+
+message RegisterRequest {
+  string account = 1;
+  string password = 2;
+  string email = 3;
+  string phonenumber = 4;
+  string sex = 5;
+}
+
+message UpdatePwdRequest {
+  string oldPassword = 1;
+  string newPassword = 2;
+}
+
+
+
+message GetInfoReply {
+  User user = 1;
+  repeated string roles = 2;
+  repeated string permissions = 3;
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+  string login_type = 3; // "password", "phone", "qq"
+  string phone = 4;
+  string code = 5; // 手机验证码
+  string auth_code = 6; // 第三方登录授权码
+}
+
+message LoginReply {
+  string access_token = 1;
+  string token = 2;
+}
+
+message LogoutRequest {}
+
+message Role {
+  string data_scope = 1;
+  bool flag = 2;
+  int64 role_id = 3;
+  string role_key = 4;
+  string role_name = 5;
+  int32 role_sort = 6;
+  string status = 7;
+  bool super_admin = 8;
+}
+
+message User {
+  string avatar = 1;
+  string create_time = 2;
+  int64 dept_id = 3;
+  string dept_name = 4;
+  string email = 5;
+  string login_date = 6;
+  string login_ip = 7;
+  string nick_name = 8;
+  string phonenumber = 9;
+  string remark = 10;
+  repeated Role roles = 11;
+  string sex = 12;
+  string status = 13;
+  string tenant_id = 14;
+  int64 user_id = 15;
+  string user_name = 16;
+  string user_type = 17;
+}
+

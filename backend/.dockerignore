@@ -1,0 +1,10 @@
+bin
+logs
+.DS_Store
+.git
+.vscode
+.trae
+node_modules
+dist
+*.tar.gz
+*.tar

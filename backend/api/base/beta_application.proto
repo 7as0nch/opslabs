@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package base;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/example/aichat/backend/api/base;base";
+option java_multiple_files = true;
+option java_package = "dev.kratos.api.base";
+option java_outer_classname = "BetaApplicationProto";
+
+service BetaApplication {
+  rpc CreateApplication (CreateBetaApplicationRequest) returns (CreateBetaApplicationReply) {
+    option (google.api.http) = {
+      post: "/beta/applications"
+      body: "*"
+    };
+  }
+}
+
+message CreateBetaApplicationRequest {
+  string product_interest = 1;
+  string contact_type = 2;
+  string contact_value = 3;
+  string use_case = 4;
+  string note = 5;
+  string source_page = 6;
+}
+
+message CreateBetaApplicationReply {
+  int64 id = 1;
+  string status = 2;
+  string mail_status = 3;
+}

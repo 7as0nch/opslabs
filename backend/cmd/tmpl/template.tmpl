@@ -1,0 +1,94 @@
+package {{.Package}}
+
+import (
+    "context"
+    "github.com/go-kratos/kratos/v2/log"
+    "github.com/example/aichat/backend/internal/biz/base"
+    "{{.ModelPath}}"
+    "github.com/example/aichat/backend/models/generator/query"
+)
+
+type {{.RepoName}}Repo struct {
+	db  DataRepo
+	query *query.Query
+	log *log.Helper
+}
+
+func New{{.ModelName}}Repo(data DataRepo, logger log.Logger) base.{{.ModelName}}Repo {
+	return &{{.RepoName}}Repo{
+		db: data, 
+		query: query.Use(data.GetDB()),
+		log: log.NewHelper(logger),
+	}
+}
+
+func (u *{{.RepoName}}Repo) Create(ctx context.Context, uModel *model.{{.ModelName}}) error {
+	err := u.query.{{.ModelName}}.WithContext(ctx).Create(uModel)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (u *{{.RepoName}}Repo) Update(ctx context.Context, uModel *model.{{.ModelName}}) error {
+	opt := u.query.{{.ModelName}}
+	info, err := opt.WithContext(ctx).Where(opt.ID.Eq(uModel.ID)).Updates(uModel)
+	u.log.Info(info)
+	if err != nil {
+		u.log.Errorf("更新错误：%v", err)
+		return err
+	}
+	return nil
+}
+
+func (u *{{.RepoName}}Repo) DeleteByIds(ctx context.Context, ids []int64) error {
+	opt := u.query.{{.ModelName}}
+	info, err := opt.WithContext(ctx).Where(opt.ID.In(ids...)).Delete()
+	u.log.Info(info)
+	if err != nil {
+		u.log.Errorf("删除错误：%v", ids)
+		return err
+	}
+	return nil
+}
+
+func (u *{{.RepoName}}Repo) GetById(ctx context.Context, id int64) (*model.{{.ModelName}}, error) {
+	opt := u.query.{{.ModelName}}
+	res, err := opt.WithContext(ctx).Where(opt.ID.Eq(id)).First()
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (u *{{.RepoName}}Repo) GetByIds(ctx context.Context, ids []int64) ([]*model.{{.ModelName}}, error) {
+	opt := u.query.{{.ModelName}}
+	res, err := opt.WithContext(ctx).Where(opt.ID.In(ids...)).Find()
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (u *{{.RepoName}}Repo) PageList(ctx context.Context, param base.{{.ModelName}}PageParams) ([]*model.{{.ModelName}}, int64, error) {
+	opt := u.query.{{.ModelName}}
+	
+	q := opt.WithContext(ctx)
+	// if param.Query != "" {
+	// 	q = q.Where(opt.Name.Like("%" + param.Query + "%"))
+	// }
+
+	if param.PageNum == 0 && param.PageSize == 0 {
+		list, err := q.Find()
+		if err != nil {
+			return nil, 0, err
+		}
+		return list, 0, nil
+	}
+	
+	list, count, err := q.FindByPage(int(param.PageNum-1)*int(param.PageSize), int(param.PageSize))
+	if err != nil {
+		return nil, 0, err
+	}
+	return list, count, nil
+}

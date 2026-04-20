@@ -1,0 +1,34 @@
+package base
+
+import (
+    "context"
+    "github.com/go-kratos/kratos/v2/log"
+    "{{.ModelPath}}"
+)
+
+type {{.ModelName}}PageParams struct {
+	PageNum  int `form:"page_num"`
+	PageSize int `form:"page_size"`
+	Query    string `form:"query"`
+}
+
+type {{.ModelName}}Repo interface {
+	Create(ctx context.Context, uModel *model.{{.ModelName}}) error
+	Update(ctx context.Context, uModel *model.{{.ModelName}}) error
+	DeleteByIds(ctx context.Context, ids []int64) error
+	GetById(ctx context.Context, id int64) (*model.{{.ModelName}}, error)
+	GetByIds(ctx context.Context, ids []int64) ([]*model.{{.ModelName}}, error)
+	PageList(ctx context.Context, param {{.ModelName}}PageParams) ([]*model.{{.ModelName}}, int64, error)
+}
+
+type {{.ModelName}}UseCase struct{
+	{{.RepoName}} {{.ModelName}}Repo
+	log   *log.Helper
+}
+
+func New{{.ModelName}}UseCase({{.RepoName}} {{.ModelName}}Repo, logger log.Logger) *{{.ModelName}}UseCase {
+	return &{{.ModelName}}UseCase{
+		{{.RepoName}}: {{.RepoName}},
+		log:   log.NewHelper(logger),
+	}
+}

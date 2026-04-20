@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package api;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+option go_package = "github.com/example/aichat/backend/api;api";
+option java_multiple_files = true;
+option java_package = "dev.kratos.api";
+option java_outer_classname = "ApiProto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+// ========== Common ==========
+message IdRequest { 
+    int64 id = 1; 
+}
+
+message EmptyReply {
+}

@@ -1,0 +1,353 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aichat # 独立命名空间，用于隔离 aichat 项目的所有资源
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: aichat
+data:
+  config.yaml: | # 后端服务的核心配置文件，通过挂载方式映射到容器内部
+    server:
+      http:
+        addr: 0.0.0.0:8000
+        timeout: 1000s
+      grpc:
+        addr: 0.0.0.0:9000
+        timeout: 1000s
+    data:
+      database:
+        driver: mysql
+        source: read_rentianhua:yNxruv24C26@tcp(rm-bp1hw1ynxruv24c26jo.mysql.rds.aliyuncs.com:3306)/rth?parseTime=True&loc=Local
+      pg_database:
+        host: 115.120.248.67
+        port: 31042
+        user: pgadmin
+        password: "123456"
+        dbname: pgdb
+        sslmode: disable
+      redis:
+        addr: 127.0.0.1:6379
+        read_timeout: 0.2s
+        write_timeout: 0.2s
+    log:
+      maxAge: 30
+      level: "debug"
+      format: "console"
+      director: "./logs"
+      encodeLevel: "CapitalColorLevelEncoder"
+---
+# 1. 后端服务 (Backend API) - AI 核心逻辑处理
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: aichat
+spec:
+  replicas: 2 # 基础副本数为 2，保证在一个 Pod 重启时服务不中断（高可用）
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0 # 更新期间不准停止任何旧副本，确保流量不中断
+      maxSurge: 1       # 更新时允许额外多出一个新副本，实现平滑过渡
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: 7as0nch/aichat-backend:v1.0.4-beta.10
+        # 【就绪检查】决定 Pod 是否可以接收流量
+        # 如果失败，Pod 将从 Service 的负载均衡列表中移除，不会有流量进入
+        # 常用于：应用启动加载中、或压力过大暂时无法处理请求时
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        # 【存活检查】决定 Pod 是否“活着”
+        # 如果失败，K8s 会强制杀掉并重启该容器
+        # 常用于：捕获应用死锁、崩溃等无法自我恢复的假死状态
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        resources:
+          # 在 4C4G 机器上，合理分配资源是关键
+          requests: # 容器启动时保证分配的最小资源，K8s 调度依据
+            cpu: "200m"
+            memory: "256Mi"
+          limits: # 允许容器使用的最大资源，防止单个 Pod 异常（如内存泄漏）导致宿主机死机
+            cpu: "800m" 
+            memory: "512Mi"
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - name: config-volume
+          mountPath: /data/conf # 挂载配置文件，修改 ConfigMap 后重启 Pod 即可生效
+      volumes:
+      - name: config-volume
+        configMap:
+          name: backend-config
+---
+# 后端自动扩缩容配置 (HPA)
+# 作用：在高并发流量进入时，自动增加副本数；流量低峰时自动回收，节省资源
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-hpa
+  namespace: aichat
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend
+  minReplicas: 2 # 维持最少 2 个副本
+  maxReplicas: 5 # 根据 4C4G 服务器压力，最大扩展到 5 个以防压垮宿主机
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 60 # 当 CPU 平均使用率超过 60% 时触发扩容
+---
+# 2. 管理端 (Backweb) - Nginx 托管的静态网页
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backweb
+  namespace: aichat
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: backweb
+  template:
+    metadata:
+      labels:
+        app: backweb
+    spec:
+      containers:
+      - name: backweb
+        image: 7as0nch/aichat-backweb:v1.0.4-beta.1
+        # 【就绪检查】流量入口控制
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 3
+          periodSeconds: 10
+        # 【存活检查】故障自动重启
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 20
+        resources:
+          # 网页服务非常轻量，仅需极少资源
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 80
+---
+# 3. 客户端 (Litechat) - 用户聊天前端界面
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litechat
+  namespace: aichat
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: litechat
+  template:
+    metadata:
+      labels:
+        app: litechat
+    spec:
+      containers:
+      - name: litechat
+        image: 7as0nch/aichat-litechat:v1.0.4-beta.6
+        # 【就绪检查】流量入口控制
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 3
+          periodSeconds: 10
+        # 【存活检查】故障自动重启
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 20
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+        ports:
+        - containerPort: 80
+---
+# 服务 (Services) 定义 - 内部负载均衡
+# 统一使用 ClusterIP 类型，因为外部访问全部交给 Ingress 代理
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: aichat
+spec:
+  selector:
+    app: backend
+  sessionAffinity: ClientIP # 在 Service 层也开启 IP 亲和性，作为二级保险
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backweb
+  namespace: aichat
+spec:
+  selector:
+    app: backweb
+  ports:
+  - name: http
+    port: 8081
+    targetPort: 80
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: litechat
+  namespace: aichat
+spec:
+  selector:
+    app: litechat
+  ports:
+  - name: http
+    port: 8082
+    targetPort: 80
+  type: ClusterIP
+---
+# 跨命名空间访问代理 (ExternalName)
+# 作用：允许 aichat 命名空间下的 Ingress 能够访问到其它命名空间（如 kuboard）下的服务
+apiVersion: v1
+kind: Service
+metadata:
+  name: kuboard-proxy-svc
+  namespace: aichat
+spec:
+  type: ExternalName
+  externalName: kuboard-v3-service.kuboard.svc.cluster.local 
+  ports:
+  - port: 80
+---
+# 4. 统一 Ingress 入口 - 对外网关
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aichat-ingress
+  namespace: aichat
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    # 大文件支持
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    
+    # 【核心配置】针对 AI 流式输出 (SSE) 的优化
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+    # 【重要】强制将 HTTP 跳转到 HTTPS
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP" # 关键：解决 502
+    # 【负载均衡优化】基于 IP 的会话亲和性
+    # 理由：不同子域下 Cookie 方案易受浏览器策略干扰，IP 哈希更稳定
+    # 确保同一客户端 IP 的请求始终路由到同一台后端 Pod，保证内存中 activeStreams 的命中率
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$binary_remote_addr"
+spec:
+  ingressClassName: nginx
+  # 【新增】TLS 配置
+  tls:
+  - hosts:
+    - aihelper.chat
+    - admin.aihelper.chat
+    - api.aihelper.chat
+    - hk.aihelper.chat
+    secretName: cf-origin-tls
+  rules:
+  - host: aihelper.chat # 用户访问域名
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: litechat
+            port:
+              number: 8082
+  - host: admin.aihelper.chat # 管理端域名
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backweb
+            port:
+              number: 8081
+  - host: api.aihelper.chat # API 接口域名
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backend
+            port:
+              number: 8000
+  - host: hk.aihelper.chat # Kuboard 面板域名
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: kuboard-proxy-svc 
+            port:
+              number: 80

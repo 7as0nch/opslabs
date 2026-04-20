@@ -1,0 +1,293 @@
+syntax = "proto3";
+
+package base;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/example/aichat/backend/api;base";
+import "google/protobuf/empty.proto";
+option java_multiple_files = true;
+option java_package = "dev.kratos.api.base";
+option java_outer_classname = "BaseProto";
+
+// The chat service definition.
+service System {
+
+    // menu
+    rpc Menu (google.protobuf.Empty) returns (MenuReply) {
+        option (google.api.http) = {
+            get: "/system/menu"
+        };
+    }
+
+    rpc AllMenu (google.protobuf.Empty) returns (AllMenuReply) {
+        option (google.api.http) = {
+            get: "/system/menu/list"
+        };
+    }
+
+    // sysMenu
+    rpc AddSysMenu (AddSysMenuRequest) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            post: "/system/menu"
+            body: "*"
+        };
+    }
+
+    // UpdateSysMenu implements base.SysMenuRepo.
+    rpc UpdateSysMenu (AddSysMenuRequest) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            put: "/system/menu"
+            body: "*"
+        };
+    } 
+
+    // DeleteSysMenu implements base.SysMenuRepo.
+    rpc DeleteSysMenu (DeleteSysMenuRequest) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            delete: "/system/menu/{id}"
+        };
+    } 
+
+    // GetSysMenu implements base.SysMenuRepo.
+    rpc GetSysMenu (GetSysMenuRequest) returns (MenuItem) {
+        option (google.api.http) = {
+            get: "/system/menu/{id}"
+        };
+    } 
+
+    // system/dict/type/list
+    rpc DictTypeList (DictTypeListRequest) returns (DictTypeListReply) {
+        option (google.api.http) = {
+            get: "/system/dict/type/list"
+        };
+    }
+    
+    // system/dict/data/list
+    rpc DictDataList (DictDataListRequest) returns (DictDataListReply) {
+        option (google.api.http) = {
+            get: "/system/dict/data/list"
+        };
+    }
+
+    // by id 
+    rpc DictTypeById (DictRequest) returns (DictType) {
+        option (google.api.http) = {
+            get: "/system/dict/type/{id}"
+        };
+    }
+
+    // add dict type
+    rpc AddDictType (DictType) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            post: "/system/dict/type"
+            body: "*"
+        };
+    }
+
+    // edit dict type
+    rpc UpdateDictType (DictType) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            put: "/system/dict/type"
+            body: "*"
+        };
+    }
+    // delete dict type
+    rpc DeleteDictType (DictRequest) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            delete: "/system/dict/type/{id}"
+        };
+    }
+    
+    // add dict data
+    rpc AddDictData (DictData) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            post: "/system/dict/data"
+            body: "*"
+        };
+    }
+    // edit dict data
+    rpc UpdateDictData (DictData) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            put: "/system/dict/data"
+            body: "*"
+        };
+    }
+
+    // delete dict data
+    rpc DeleteDictData (DictRequest) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            delete: "/system/dict/data/{id}"
+        };
+    }
+
+    // data by id
+    rpc DictDataById (DictRequest) returns (DictData) {
+        option (google.api.http) = {
+            get: "/system/dict/data/{id}"
+        };
+    }
+
+    // data list by type
+    rpc DictDataListByType (DictDataListByTypeRequest) returns (DictDataListReply) {
+        option (google.api.http) = {
+            get: "/system/dict/data/type/{dictType}"
+        };
+    }
+}
+
+message DictDataListByTypeRequest {
+  string dictType = 1;
+}
+
+message DictRequest {
+  int64 id = 1;
+}
+
+message DictDataListRequest {
+  int32 pageNum = 1;
+  int32 pageSize = 2;
+  string dictLabel = 3;
+  string dictType = 4;
+}
+message DictDataListReply {
+  repeated DictData list = 1;
+  int32 total = 2;
+}
+
+message DictData {
+  // "dictCode": "1954098808913211393",
+  string dictCode = 1;
+  // "dictSort": 0,
+  int32 dictSort = 2;
+  // "dictLabel": "STDIO",
+  string dictLabel = 3;
+  // "dictValue": "STDIO",
+  string dictValue = 4;
+  // "dictType": "mcp_transport_type",
+  string dictType = 5;
+  // "listClass": "",
+  string listClass = 6;
+  // "isDefault": "N",
+  string isDefault = 7;
+  // "status": "0",
+  string status = 8;
+  // "createTime": 1754728436000
+  string createTime = 9;
+}
+
+
+message DictTypeListRequest {
+  int32 pageNum = 1;
+  int32 pageSize = 2;
+  string dictType = 3;
+  string dictName = 4;
+}
+
+message DictTypeListReply {
+  repeated DictType list = 1;
+  int32 total = 2;
+}
+
+message DictType {
+  // "dictId": "1",
+  int64 dictId = 1;
+  // "dictName": "用户性别",
+  string dictName = 2;
+  // "dictType": "sys_user_sex",
+  string dictType = 3;
+  // "status": "0",
+  string status = 4;
+  // "remark": "用户性别列表",
+  string remark = 5;
+  // "createTime": 1684048781000
+  int64 createTime = 6;
+}
+
+
+
+message MenuReply {
+  repeated Menu menu = 1;
+}
+
+message MenuMeta {
+  string icon = 1;
+  string link = 2;
+  bool noCache = 3;
+  string title = 4;
+}
+
+
+message Menu {
+  bool alwaysShow = 1;
+  repeated Menu children = 2;
+  string component = 3;
+  bool hidden = 4;
+  MenuMeta meta = 5;
+  string name = 6;
+  string path = 7;
+  string query = 8;
+  string redirect = 9;
+  int64 id = 10;
+  int64 parentID = 11;
+}
+
+message AddSysMenuRequest {
+  int64 menuId = 1;
+  string menuName = 2;
+  string parentName = 3;
+  int64 parentId = 4;
+  int32 orderNum = 5;
+  string path = 6;
+  string component = 7;
+  string query = 8;
+  string isFrame = 9;
+  string isCache = 10;
+  string menuType = 11;
+  string visible = 12;
+  string status = 13;
+  string perms = 14;
+  string icon = 15;
+  repeated MenuItem children = 16;
+  string createTime = 17;
+  string updateTime = 18;
+  string createBy = 19;
+  string updateBy = 20;
+  string remark = 21; 
+}
+
+message DeleteSysMenuRequest {
+  int64 id = 1;
+}
+
+message GetSysMenuRequest {
+  int64 id = 1;
+}
+
+message AllMenuReply {
+  repeated MenuItem menus = 1;
+}
+
+message MenuItem {
+  int64 menuId = 1;
+  string menuName = 2;
+  string parentName = 3;
+  int64 parentId = 4;
+  int32 orderNum = 5;
+  string path = 6;
+  string component = 7;
+  string query = 8;
+  string isFrame = 9;
+  string isCache = 10;
+  string menuType = 11;
+  string visible = 12;
+  string status = 13;
+  string perms = 14;
+  string icon = 15;
+  repeated MenuItem children = 16;
+  string createTime = 17;
+  string updateTime = 18;
+  string createBy = 19;
+  string updateBy = 20;
+  string remark = 21; 
+}

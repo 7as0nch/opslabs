@@ -1,0 +1,111 @@
+package {{.package}}
+
+import (
+    "{{.ModelPath}}"
+)
+
+type {{.ModelName}}Repo interface {
+	Create{{.ModelName}}(ctx context.Context, uModel *model.{{.ModelName}}, db *gorm.DB) error
+	Update{{.ModelName}}(ctx context.Context, uModel *model.{{.ModelName}}, db *gorm.DB) error
+	Delete{{.ModelName}}ByIds(ctx context.Context, ids []string, db *gorm.DB) error
+	Get{{.ModelName}}ById(ctx context.Context, id string) (*model.{{.ModelName}}, error)
+	Get{{.ModelName}}ByIds(ctx context.Context, ids []string) ([]*model.{{.ModelName}}, error)
+	Get{{.ModelName}}List(ctx context.Context, query string, pageNum, pageSize int64) ([]*model.{{.ModelName}}, error)
+	// GetDB 得到db以方便事务处理
+	GetDB() *gorm.DB
+}
+
+type {{.RepoName}}Repo struct {
+	Db  biz.DataRepo
+	log *log.Helper
+}
+
+func New{{.ModelName}}Repo(data biz.DataRepo, logger log.Logger) {{.ModelName}}Repo {
+	return &{{.RepoName}}Repo{Db: data, log: log.NewHelper(logger)}
+}
+
+func (u *{{.RepoName}}Repo) Create{{.ModelName}}(ctx context.Context, uModel *model.{{.ModelName}}, db *gorm.DB) error {
+	var s = db
+	if db == nil {
+		s = u.Db.GetDB()
+	}
+	opt := query.Use(s).{{.ModelName}}
+	err := opt.WithContext(ctx).Create(uModel)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (u *{{.RepoName}}Repo) Update{{.ModelName}}(ctx context.Context, uModel *model.{{.ModelName}}, db *gorm.DB) error {
+	var s = db
+	if db == nil {
+		s = u.Db.GetDB()
+	}
+	opt := query.Use(s).{{.ModelName}}
+	info, err := opt.WithContext(ctx).Where(opt.ID.Eq(uModel.ID)).Updates(uModel)
+	u.log.Info(info)
+	if err != nil {
+		u.log.Errorf("更新错误：%v", err)
+		return err
+	}
+	return nil
+}
+
+func (u *{{.RepoName}}Repo) Delete{{.ModelName}}ByIds(ctx context.Context, ids []string, db *gorm.DB) error {
+	var s = db
+	if db == nil {
+		s = u.Db.GetDB()
+	}
+	role := query.Use(s).{{.ModelName}}
+	info, err := role.WithContext(ctx).Where(role.ID.In(ids...)).Delete()
+	u.log.Info(info)
+	if err != nil {
+		u.log.Errorf("删除错误：%v", ids)
+		return err
+	}
+	return nil
+}
+
+func (u *{{.RepoName}}Repo) Get{{.ModelName}}ById(ctx context.Context, id string) (*model.{{.ModelName}}, error) {
+	s := u.Db.GetDB()
+	opt := query.Use(s).{{.ModelName}}
+	user, err := opt.WithContext(ctx).Where(opt.IsSoftDelete.Eq("0"), opt.ID.Eq(id)).First()
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (u *{{.RepoName}}Repo) Get{{.ModelName}}ByIds(ctx context.Context, ids []string) ([]*model.{{.ModelName}}, error) {
+	s := u.Db.GetDB()
+	opt := query.Use(s).{{.ModelName}}
+	users, err := opt.WithContext(ctx).Where(opt.IsSoftDelete.Eq("0"), opt.ID.In(ids...)).Find()
+	if err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+func (u *{{.RepoName}}Repo) Get{{.ModelName}}List(ctx context.Context, queryParam string, pageNum, pageSize int64) ([]*model.{{.ModelName}}, error) {
+	s := u.Db.GetDB()
+	opt := query.Use(s).{{.ModelName}}
+	if pageNum == 0 && pageSize == 0 {
+		radars, err := opt.WithContext(ctx).Where(opt.IsSoftDelete.Eq("0")).Find()
+		if err != nil {
+			return nil, err
+		}
+		return radars, nil
+	}
+	list, err := opt.WithContext(ctx).Where(opt.IsSoftDelete.Eq("0")).Limit(int(pageSize)).Offset(int((pageNum - 1) * pageSize)).Find()
+	if err != nil {
+		return nil, err
+	}
+	// 计算总数
+	count, _ := opt.WithContext(ctx).Count()
+	return list, count, nil
+}
+
+func (u *{{.RepoName}}Repo) GetDB() *gorm.DB {
+	return u.Db.GetDB()
+}

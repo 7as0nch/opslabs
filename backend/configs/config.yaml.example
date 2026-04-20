@@ -1,0 +1,52 @@
+server:
+  http:
+    addr: 0.0.0.0:6039
+    timeout: 1000s
+  grpc:
+    addr: 0.0.0.0:9000
+    timeout: 1000s
+data:
+  database:
+    driver: mysql
+    source: read_rentianhua:@tcp(rm-.mysql.rds.aliyuncs.com:3306)/rth?parseTime=True&loc=Local
+  pg_database:
+    host: sshjd.aihelper.chat
+    port: 30532
+    user:
+    password: ""
+    dbname: pgdb
+    sslmode: disable
+  redis:
+    addr: sshjd.aihelper.chat:30379
+    read_timeout: 0.2s
+    write_timeout: 0.2s
+    password: ""
+
+log:
+  maxAge: 30
+  level: "debug"
+  format: "console"
+  director: "./logs"
+  encodeLevel: "CapitalColorLevelEncoder"
+
+auth:
+  qq:
+    app_id: ""
+    app_key: ""
+    callback_url: ""
+    frontend_redirect: "http://localhost:5173/chat"
+    scope: "get_user_info"
+
+beta:
+  mail:
+    host: ""
+    port: 587
+    username: ""
+    password: ""
+    to: ""
+    from: ""
+
+# TODO minio 配置
+oss:
+  access_key: ""
+  secret_key: ""
