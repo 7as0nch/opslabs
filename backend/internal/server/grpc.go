@@ -2,8 +2,10 @@ package server
 
 import (
 	basepb "github.com/7as0nch/backend/api/base"
+	opslabspb "github.com/7as0nch/backend/api/opslabs/v1"
 	"github.com/7as0nch/backend/internal/conf"
 	"github.com/7as0nch/backend/internal/service/base"
+	"github.com/7as0nch/backend/internal/service/opslabs"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/logging"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
@@ -17,6 +19,8 @@ func NewGRPCServer(c *conf.Server,
 	authServ *base.AuthService,
 	systemServ *base.SystemService,
 	trackerServ *base.TrackerService,
+	scenarioServ *opslabs.ScenarioService,
+	attemptServ *opslabs.AttemptService,
 	logg log.Logger) *grpc.Server {
 	var opts = []grpc.ServerOption{
 		grpc.Middleware(
@@ -38,5 +42,9 @@ func NewGRPCServer(c *conf.Server,
 	basepb.RegisterAuthServer(srv, authServ)
 	basepb.RegisterSystemServer(srv, systemServ)
 	basepb.RegisterTrackerServer(srv, trackerServ)
+
+	// opslabs
+	opslabspb.RegisterScenarioServer(srv, scenarioServ)
+	opslabspb.RegisterAttemptServer(srv, attemptServ)
 	return srv
 }

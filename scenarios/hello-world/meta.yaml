@@ -1,0 +1,66 @@
+# hello-world 引导场景 meta
+# 硬编码注册表在 backend/internal/scenario/registry.go,本文件 Week 2 yaml 扫描方案上线后才会被读取
+slug: hello-world
+version: "1.0.0"
+
+title: "欢迎来到 opslabs"
+summary: "熟悉平台操作,3 分钟上手第一个任务"
+description_file: "README.md"
+
+category: guide
+difficulty: 1
+estimated_minutes: 3
+
+target_personas:
+  - student
+  - frontend-engineer
+  - backend-engineer
+  - ops-engineer
+experience_level: intern
+
+tech_stack:
+  - linux
+skills:
+  - basic-shell
+commands:
+  - cat
+  - touch
+  - ls
+tags:
+  - onboarding
+  - tutorial
+
+runtime:
+  image: opslabs/hello-world:v1
+  memory_mb: 256
+  cpus: 0.3
+  idle_timeout_minutes: 30
+  passed_grace_minutes: 10
+  network_mode: isolated
+  variants: []
+
+grading:
+  check_script: /opt/opslabs/check.sh
+  check_timeout_seconds: 5
+  success_output: "OK"
+
+hints:
+  - level: 1
+    content: "不知道如何查看文件?试试 cat ~/welcome.txt"
+  - level: 2
+    content: "创建空文件可以用 touch 命令,格式:touch /路径/文件名"
+  - level: 3
+    content: "在终端执行:touch /tmp/ready.flag"
+
+learning_resources: []
+prerequisites: []
+recommended_next:
+  - frontend-devserver-down
+  - backend-api-500
+  - ops-nginx-upstream-fail
+
+author: official
+created_at: "2026-04-20"
+updated_at: "2026-04-21"
+is_published: true
+is_premium: false

@@ -7,6 +7,7 @@ package biz
 **/
 
 import (
+	"github.com/7as0nch/backend/internal/biz/attempt"
 	"github.com/7as0nch/backend/internal/biz/base"
 	"github.com/google/wire"
 )
@@ -18,4 +19,5 @@ var ProviderSet = wire.NewSet(
 	base.NewDictTypeUseCase,
 	base.NewDictDataUseCase,
 	base.NewTrackerUseCase,
+	attempt.NewAttemptUsecase,
 )

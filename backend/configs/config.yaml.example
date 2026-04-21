@@ -50,3 +50,18 @@ beta:
 oss:
   access_key: ""
   secret_key: ""
+
+# opslabs 场景运行时配置
+#
+# driver:
+#   - docker (默认/生产):docker run 真容器,HostPort 为真实映射端口
+#   - mock (测试):不启容器、不占端口,HostPort=0,前端会识别为"预览模式"
+#     仅用于无 Docker Desktop 本机冒烟 API 契约;线上请勿使用
+runtime:
+  driver: docker
+  port_start: 10000
+  port_end: 19999
+  terminal_host: localhost
+  terminal_url_template: "http://{host}:{port}/"
+  default_idle_timeout: 1800s
+  reaper_interval: 60s

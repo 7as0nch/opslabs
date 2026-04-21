@@ -18,7 +18,7 @@
 
 **用户核心诉求**:"我想在安全环境里练手真实故障,练完知道自己哪里菜。"
 
-**产品名**:建议朗朗上口、能联想到场景的,比如 `FixIt`、`ServerDown`、`排障岛`、`修服务`——先起一个占位名就行,上线前再定。文档里先用 **FixIt** 代称。
+**产品名**:建议朗朗上口、能联想到场景的,比如 `opslabs`、`ServerDown`、`排障岛`、`修服务`——先起一个占位名就行,上线前再定。文档里先用 **opslabs** 代称。
 
 ## 2. 核心功能清单(V1 上线范围)
 
@@ -365,7 +365,7 @@ Week 8      第一次付费点试探
 
 ---
 
-# FixIt 排障练习平台 · 初版技术方案
+# opslabs 排障练习平台 · 初版技术方案
 
 ## 1. 项目概述
 
@@ -459,7 +459,7 @@ Week 8      第一次付费点试探
 
 | Day | 任务 | 验收标准 |
 |---|---|---|
-| D1 | 服务器准备、Docker 安装、基础镜像构建 | `docker run fixit-base` 能进入一个带 ttyd 的 shell |
+| D1 | 服务器准备、Docker 安装、基础镜像构建 | `docker run opslabs-base` 能进入一个带 ttyd 的 shell |
 | D2 | 场景 1 Dockerfile + setup.sh + check.sh | 本地手动跑通,故障能复现,check.sh 判题准确 |
 | D3 | ttyd 集成,浏览器直连容器终端 | 浏览器访问 `http://server:port` 能操作容器 |
 | D4 | Go 后端脚手架(gin + gorm)搭建 | `/ping` 接口可访问 |
@@ -489,19 +489,19 @@ Week 8      第一次付费点试探
 
 像编程从 Hello World 起步一样,排障的"Hello World"应该是**教用户怎么用这个平台,同时学会最基本的排障动作**——看进程、看日志、看资源。
 
-### 场景 1:欢迎来到 FixIt(★ 引导)
+### 场景 1:欢迎来到 opslabs(★ 引导)
 
 **slug**: `hello-world`
 **预计用时**: 3 分钟
 **考点**: 熟悉终端、基本文件命令
 
 **背景故事**
-> 欢迎来到 FixIt!在你开始真正的故障排查之前,先让你熟悉一下这个环境。
+> 欢迎来到 opslabs!在你开始真正的故障排查之前,先让你熟悉一下这个环境。
 >
 > 你当前登录的是一台 Linux 服务器。在你的 `home` 目录下有一个 `welcome.txt` 文件。请读取它的内容,并按文件里的指示完成一个简单任务。
 
 **隐藏任务**(welcome.txt 内容):
-> 欢迎来到 FixIt。你的第一个任务:在 /tmp 下创建一个名为 `ready.flag` 的空文件,然后点击"检查答案"按钮。
+> 欢迎来到 opslabs。你的第一个任务:在 /tmp 下创建一个名为 `ready.flag` 的空文件,然后点击"检查答案"按钮。
 
 **Setup 逻辑**
 - 在 `/root` 下生成 welcome.txt 文件
@@ -609,7 +609,7 @@ type Scenario struct {
     Difficulty     uint8     `gorm:"index"`                   // 1-5 星
     Tags           string    `gorm:"size:255"`                // 逗号分隔: linux,process,cpu
     EstimatedMin   uint16                                     // 预计用时(分钟)
-    DockerImage    string    `gorm:"size:128"`                // fixit/cpu-hog:v1
+    DockerImage    string    `gorm:"size:128"`                // opslabs/cpu-hog:v1
     Version        string    `gorm:"size:32"`                 // 场景版本号,便于追溯
     IsPublished    bool      `gorm:"default:false"`
     CreatedAt      time.Time
@@ -713,7 +713,7 @@ Resp: {
     "scenarios": [
       {
         "slug": "hello-world",
-        "title": "欢迎来到 FixIt",
+        "title": "欢迎来到 opslabs",
         "summary": "熟悉你的排障工作台",
         "difficulty": 1,
         "tags": ["guide"],
@@ -772,7 +772,7 @@ Resp: {
   "code": 0,
   "data": {
     "attempt_id": 12345,
-    "terminal_url": "https://tty.fixit.cn/s/abc123def",
+    "terminal_url": "https://tty.opslabs.cn/s/abc123def",
     "expires_at": "2026-04-20T15:30:00Z"
   }
 }
@@ -880,7 +880,7 @@ Resp: { "code": 0 }
 **容器限制**(docker run 参数):
 ```
 --memory=512m --memory-swap=512m --cpus=0.5
---network=fixit-scenarios   (独立网络,禁止访问宿主和外网)
+--network=opslabs-scenarios   (独立网络,禁止访问宿主和外网)
 --cap-drop=ALL --cap-add=SETUID --cap-add=SETGID --cap-add=NET_BIND_SERVICE
 --pids-limit=200
 --security-opt=no-new-privileges
@@ -888,7 +888,7 @@ Resp: { "code": 0 }
 ```
 
 **判题脚本防篡改**
-- `check.sh` 放在 `/opt/fixit/` 目录,属主 root 且只读(镜像构建时 `chmod 0400`)
+- `check.sh` 放在 `/opt/opslabs/` 目录,属主 root 且只读(镜像构建时 `chmod 0400`)
 - 用户默认 user 权限,无法读取 check.sh 内容
 - 执行判题时由外部 agent 用 root 身份 exec
 

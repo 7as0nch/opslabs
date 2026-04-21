@@ -11,6 +11,7 @@ message Bootstrap {
   Log log = 3;
   Auth auth = 4;
   Beta beta = 5;
+  Runtime runtime = 6;
 }
 
 message Log {
@@ -86,4 +87,29 @@ message Beta {
   }
 
   Mail mail = 1;
+}
+
+// Runtime 容器运行时与场景编排相关配置
+message Runtime {
+  // driver: "mock" | "docker"(Week 1 固定为 mock)
+  string driver = 1;
+  // Docker 端口池 [port_start, port_end]
+  int32 port_start = 2;
+  int32 port_end = 3;
+  // 终端访问 URL 模板,占位符 {host}/{port},例如:
+  //   http://{host}:{port}/
+  //   https://lab.example.com/t/{port}/
+  string terminal_url_template = 4;
+  // 终端宿主机(公网地址,填前端访问的外部 host)
+  string terminal_host = 5;
+  // 默认空闲超时,超时会被 reaper 标记为 expired
+  google.protobuf.Duration default_idle_timeout = 6;
+  // reaper 扫描周期
+  google.protobuf.Duration reaper_interval = 7;
+  // Docker 网络名,所有场景容器加入该网络(NetworkMode=internet-allowed 场景除外)
+  // 默认 "opslabs-scenarios",docker runtime 生效
+  string docker_network = 8;
+  // 通关 grace:passed 态容器留给用户复盘的保留时间,到期后 reaper 清容器
+  // 默认 10 分钟
+  google.protobuf.Duration passed_grace = 9;
 }

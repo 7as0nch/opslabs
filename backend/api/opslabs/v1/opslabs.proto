@@ -1,0 +1,184 @@
+syntax = "proto3";
+
+package opslabs.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/7as0nch/backend/api/opslabs/v1;v1";
+option java_multiple_files = true;
+option java_package = "dev.kratos.api.opslabs.v1";
+option java_outer_classname = "OpslabsProto";
+
+// =====================================================================
+// Scenario 场景元信息服务
+// =====================================================================
+service Scenario {
+  // 场景列表(支持 category / difficulty / persona 过滤,Week 1 查询参数先不生效)
+  rpc ListScenarios (ListScenariosRequest) returns (ListScenariosReply) {
+    option (google.api.http) = {
+      get: "/v1/scenarios"
+    };
+  }
+
+  // 场景详情(含 Markdown 描述与提示外壳)
+  rpc GetScenario (GetScenarioRequest) returns (ScenarioReply) {
+    option (google.api.http) = {
+      get: "/v1/scenarios/{slug}"
+    };
+  }
+}
+
+// =====================================================================
+// Attempt 场景尝试服务
+// =====================================================================
+service Attempt {
+  // 启动场景,分配容器与 ttyd 端口
+  rpc StartScenario (StartScenarioRequest) returns (StartScenarioReply) {
+    option (google.api.http) = {
+      post: "/v1/scenarios/{slug}/start"
+      body: "*"
+    };
+  }
+
+  // 查询 Attempt 状态(前端每 10s 轮询,顺便更新 last_active_at)
+  rpc GetAttempt (GetAttemptRequest) returns (AttemptReply) {
+    option (google.api.http) = {
+      get: "/v1/attempts/{id}"
+    };
+  }
+
+  // 判题(同步执行容器内 check.sh)
+  rpc CheckAttempt (CheckAttemptRequest) returns (CheckAttemptReply) {
+    option (google.api.http) = {
+      post: "/v1/attempts/{id}/check"
+      body: "*"
+    };
+  }
+
+  // 手动结束场景
+  rpc TerminateAttempt (TerminateAttemptRequest) returns (TerminateAttemptReply) {
+    option (google.api.http) = {
+      post: "/v1/attempts/{id}/terminate"
+      body: "*"
+    };
+  }
+}
+
+// =====================================================================
+// 公共消息
+// =====================================================================
+
+// Hint 提示外壳(Week 1 content 始终返回空,V2 解锁后才带内容)
+message Hint {
+  uint32 level = 1;
+  bool unlocked = 2;
+  string content = 3;
+}
+
+// ScenarioBrief 场景列表项(精简字段)
+message ScenarioBrief {
+  string slug = 1;
+  string title = 2;
+  string summary = 3;
+  string category = 4;
+  uint32 difficulty = 5;
+  uint32 estimated_minutes = 6;
+  repeated string target_personas = 7;
+  repeated string tech_stack = 8;
+  repeated string tags = 9;
+  bool is_premium = 10;
+}
+
+// ScenarioDetail 场景详情(完整字段)
+message ScenarioDetail {
+  string slug = 1;
+  string version = 2;
+  string title = 3;
+  string summary = 4;
+  string description_md = 5;
+  string category = 6;
+  uint32 difficulty = 7;
+  uint32 estimated_minutes = 8;
+  repeated string target_personas = 9;
+  string experience_level = 10;
+  repeated string tech_stack = 11;
+  repeated string skills = 12;
+  repeated string commands = 13;
+  repeated string tags = 14;
+  repeated Hint hints = 15;
+  bool is_premium = 16;
+}
+
+// =====================================================================
+// Scenario 相关
+// =====================================================================
+
+// ListScenariosRequest 场景列表查询(过滤字段 Week 2 再生效)
+message ListScenariosRequest {
+  string category = 1;
+  uint32 difficulty = 2;
+  string persona = 3;
+  string tech = 4;
+  string tag = 5;
+}
+
+message ListScenariosReply {
+  repeated ScenarioBrief scenarios = 1;
+  uint32 total = 2;
+}
+
+message GetScenarioRequest {
+  string slug = 1;
+}
+
+message ScenarioReply {
+  ScenarioDetail scenario = 1;
+}
+
+// =====================================================================
+// Attempt 相关
+// =====================================================================
+
+message StartScenarioRequest {
+  string slug = 1;
+}
+
+message StartScenarioReply {
+  string attempt_id = 1;
+  string terminal_url = 2;
+  // 空闲超时时间(RFC3339)
+  string expires_at = 3;
+}
+
+message GetAttemptRequest {
+  string id = 1;
+}
+
+message AttemptReply {
+  string attempt_id = 1;
+  string scenario_slug = 2;
+  string status = 3;
+  string terminal_url = 4;
+  string started_at = 5;
+  string last_active_at = 6;
+}
+
+message CheckAttemptRequest {
+  string id = 1;
+}
+
+message CheckAttemptReply {
+  bool passed = 1;
+  string message = 2;
+  // 仅通关时返回
+  uint32 duration_seconds = 3;
+  uint32 check_count = 4;
+}
+
+message TerminateAttemptRequest {
+  string id = 1;
+}
+
+message TerminateAttemptReply {
+  string status = 1;
+}

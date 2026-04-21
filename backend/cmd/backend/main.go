@@ -38,7 +38,14 @@ func init() {
 	flag.StringVar(&flagconf, "conf", "../../configs/config.yaml", "config path, eg: -conf config.yaml")
 }
 
-func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server, ws *server.WebSocketApp) *kratos.App {
+func newApp(
+	logger log.Logger,
+	gs *grpc.Server,
+	hs *http.Server,
+	ws *server.WebSocketApp,
+	reaper *server.AttemptReaper,
+	bootstrapper *server.AttemptBootstrapper,
+) *kratos.App {
 	return kratos.New(
 		kratos.ID(id),
 		kratos.Name(Name),
@@ -46,9 +53,12 @@ func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server, ws *server.WebS
 		kratos.Metadata(map[string]string{}),
 		kratos.Logger(logger),
 		kratos.Server(
+			// bootstrapper 放第一个:先回灌 store 再开放对外服务
+			bootstrapper,
 			gs,
 			hs,
 			ws,
+			reaper,
 		),
 	)
 }

@@ -7,6 +7,7 @@
 package main
 
 import (
+	"github.com/7as0nch/backend/internal/biz/attempt"
 	"github.com/7as0nch/backend/internal/biz/base"
 	"github.com/7as0nch/backend/internal/biz/base/loginprovider"
 	"github.com/7as0nch/backend/internal/conf"
@@ -14,11 +15,14 @@ import (
 	"github.com/7as0nch/backend/internal/db"
 	"github.com/7as0nch/backend/internal/server"
 	base2 "github.com/7as0nch/backend/internal/service/base"
+	"github.com/7as0nch/backend/internal/service/opslabs"
 	"github.com/7as0nch/backend/pkg/auth"
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/log"
 	"go.uber.org/zap"
+)
 
+import (
 	_ "go.uber.org/automaxprocs"
 )
 
@@ -47,11 +51,21 @@ func wireApp(confServer *conf.Server, bootstrap *conf.Bootstrap, logger *zap.Log
 	trackerRepo := data.NewTrackerRepo(dataRepo, logger)
 	trackerUseCase := base.NewTrackerUseCase(trackerRepo)
 	trackerService := base2.NewTrackerService(trackerUseCase)
-	grpcServer := server.NewGRPCServer(confServer, authService, systemService, trackerService, logLogger)
-	httpServer := server.NewHTTPServer(confServer, authService, authRepo, systemService, trackerService, logLogger)
+	registry := server.NewScenarioRegistry()
+	scenarioService := opslabs.NewScenarioService(registry)
+	attemptRepo := data.NewAttemptRepo(dataRepo, logger)
+	attemptStore := server.NewAttemptStore()
+	runner := server.NewRunner(bootstrap, logger)
+	attemptUsecase := attempt.NewAttemptUsecase(attemptRepo, attemptStore, runner, registry, logger)
+	serviceOptions := server.NewOpslabsServiceOptions(bootstrap)
+	attemptService := opslabs.NewAttemptService(attemptUsecase, serviceOptions)
+	grpcServer := server.NewGRPCServer(confServer, authService, systemService, trackerService, scenarioService, attemptService, logLogger)
+	httpServer := server.NewHTTPServer(confServer, authService, authRepo, systemService, trackerService, scenarioService, attemptService, logLogger)
 	webSocketServer := server.NewWebSocketServer(logger)
 	webSocketApp := server.NewWebSocketApp(webSocketServer, logger)
-	app := newApp(logLogger, grpcServer, httpServer, webSocketApp)
+	attemptReaper := server.NewAttemptReaper(attemptStore, attemptUsecase, bootstrap, logger)
+	attemptBootstrapper := server.NewAttemptBootstrapper(attemptUsecase, logger)
+	app := newApp(logLogger, grpcServer, httpServer, webSocketApp, attemptReaper, attemptBootstrapper)
 	return app, func() {
 		cleanup()
 	}, nil

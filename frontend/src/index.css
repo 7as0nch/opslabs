@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 100vh 布局:整体不产生页面级滚动条,内部需要滚动的区域各自 overflow-y-auto */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', Roboto,
+    Ubuntu, 'Helvetica Neue', Arial, 'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+body {
+  /* 避免浏览器默认 min-width 引入横向滚动 */
+  min-width: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* 轻量滚动条,避免占位过宽 */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.scroll-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

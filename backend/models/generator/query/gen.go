@@ -16,17 +16,19 @@ import (
 )
 
 var (
-	Q                = new(Query)
-	SysDict          *sysDict
-	SysDictType      *sysDictType
-	SysMenu          *sysMenu
-	SysTracker       *sysTracker
-	SysUser          *sysUser
-	SysUserAuth      *sysUserAuth
+	Q              = new(Query)
+	OpslabsAttempt *opslabsAttempt
+	SysDict        *sysDict
+	SysDictType    *sysDictType
+	SysMenu        *sysMenu
+	SysTracker     *sysTracker
+	SysUser        *sysUser
+	SysUserAuth    *sysUserAuth
 )
 
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	*Q = *Use(db, opts...)
+	OpslabsAttempt = &Q.OpslabsAttempt
 	SysDict = &Q.SysDict
 	SysDictType = &Q.SysDictType
 	SysMenu = &Q.SysMenu
@@ -37,38 +39,41 @@ func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
-		db:               db,
-		SysDict:          newSysDict(db, opts...),
-		SysDictType:      newSysDictType(db, opts...),
-		SysMenu:          newSysMenu(db, opts...),
-		SysTracker:       newSysTracker(db, opts...),
-		SysUser:          newSysUser(db, opts...),
-		SysUserAuth:      newSysUserAuth(db, opts...),
+		db:             db,
+		OpslabsAttempt: newOpslabsAttempt(db, opts...),
+		SysDict:        newSysDict(db, opts...),
+		SysDictType:    newSysDictType(db, opts...),
+		SysMenu:        newSysMenu(db, opts...),
+		SysTracker:     newSysTracker(db, opts...),
+		SysUser:        newSysUser(db, opts...),
+		SysUserAuth:    newSysUserAuth(db, opts...),
 	}
 }
 
 type Query struct {
 	db *gorm.DB
 
-	SysDict          sysDict
-	SysDictType      sysDictType
-	SysMenu          sysMenu
-	SysTracker       sysTracker
-	SysUser          sysUser
-	SysUserAuth      sysUserAuth
+	OpslabsAttempt opslabsAttempt
+	SysDict        sysDict
+	SysDictType    sysDictType
+	SysMenu        sysMenu
+	SysTracker     sysTracker
+	SysUser        sysUser
+	SysUserAuth    sysUserAuth
 }
 
 func (q *Query) Available() bool { return q.db != nil }
 
 func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
-		db:               db,
-		SysDict:          q.SysDict.clone(db),
-		SysDictType:      q.SysDictType.clone(db),
-		SysMenu:          q.SysMenu.clone(db),
-		SysTracker:       q.SysTracker.clone(db),
-		SysUser:          q.SysUser.clone(db),
-		SysUserAuth:      q.SysUserAuth.clone(db),
+		db:             db,
+		OpslabsAttempt: q.OpslabsAttempt.clone(db),
+		SysDict:        q.SysDict.clone(db),
+		SysDictType:    q.SysDictType.clone(db),
+		SysMenu:        q.SysMenu.clone(db),
+		SysTracker:     q.SysTracker.clone(db),
+		SysUser:        q.SysUser.clone(db),
+		SysUserAuth:    q.SysUserAuth.clone(db),
 	}
 }
 
@@ -82,33 +87,36 @@ func (q *Query) WriteDB() *Query {
 
 func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
-		db:               db,
-		SysDict:          q.SysDict.replaceDB(db),
-		SysDictType:      q.SysDictType.replaceDB(db),
-		SysMenu:          q.SysMenu.replaceDB(db),
-		SysTracker:       q.SysTracker.replaceDB(db),
-		SysUser:          q.SysUser.replaceDB(db),
-		SysUserAuth:      q.SysUserAuth.replaceDB(db),
+		db:             db,
+		OpslabsAttempt: q.OpslabsAttempt.replaceDB(db),
+		SysDict:        q.SysDict.replaceDB(db),
+		SysDictType:    q.SysDictType.replaceDB(db),
+		SysMenu:        q.SysMenu.replaceDB(db),
+		SysTracker:     q.SysTracker.replaceDB(db),
+		SysUser:        q.SysUser.replaceDB(db),
+		SysUserAuth:    q.SysUserAuth.replaceDB(db),
 	}
 }
 
 type queryCtx struct {
-	SysDict          ISysDictDo
-	SysDictType      ISysDictTypeDo
-	SysMenu          ISysMenuDo
-	SysTracker       ISysTrackerDo
-	SysUser          ISysUserDo
-	SysUserAuth      ISysUserAuthDo
+	OpslabsAttempt IOpslabsAttemptDo
+	SysDict        ISysDictDo
+	SysDictType    ISysDictTypeDo
+	SysMenu        ISysMenuDo
+	SysTracker     ISysTrackerDo
+	SysUser        ISysUserDo
+	SysUserAuth    ISysUserAuthDo
 }
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
-		SysDict:          q.SysDict.WithContext(ctx),
-		SysDictType:      q.SysDictType.WithContext(ctx),
-		SysMenu:          q.SysMenu.WithContext(ctx),
-		SysTracker:       q.SysTracker.WithContext(ctx),
-		SysUser:          q.SysUser.WithContext(ctx),
-		SysUserAuth:      q.SysUserAuth.WithContext(ctx),
+		OpslabsAttempt: q.OpslabsAttempt.WithContext(ctx),
+		SysDict:        q.SysDict.WithContext(ctx),
+		SysDictType:    q.SysDictType.WithContext(ctx),
+		SysMenu:        q.SysMenu.WithContext(ctx),
+		SysTracker:     q.SysTracker.WithContext(ctx),
+		SysUser:        q.SysUser.WithContext(ctx),
+		SysUserAuth:    q.SysUserAuth.WithContext(ctx),
 	}
 }
 

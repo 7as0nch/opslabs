@@ -16,7 +16,7 @@
 slug: hello-world
 version: "1.0.0"
 
-title: "欢迎来到 FixIt"
+title: "欢迎来到 opslabs"
 summary: "熟悉平台操作,3 分钟上手第一个任务"
 description_file: "README.md"
 
@@ -44,7 +44,7 @@ tags:
   - tutorial
 
 runtime:
-  image: fixit/hello-world:v1
+  image: opslabs/hello-world:v1
   memory_mb: 256
   cpus: 0.3
   idle_timeout_minutes: 30
@@ -53,7 +53,7 @@ runtime:
   variants: []
 
 grading:
-  check_script: /opt/fixit/check.sh
+  check_script: /opt/opslabs/check.sh
   check_timeout_seconds: 5
   success_output: "OK"
 
@@ -82,7 +82,7 @@ is_premium: false
 ### `scenarios/hello-world/README.md`
 
 ```markdown
-# 欢迎来到 FixIt
+# 欢迎来到 opslabs
 
 你好,欢迎!
 
@@ -115,7 +115,7 @@ is_premium: false
 set -e
 
 cat > /home/player/welcome.txt <<'EOF'
-欢迎来到 FixIt。
+欢迎来到 opslabs。
 
 你的第一个任务:
 在 /tmp 下创建一个名为 ready.flag 的空文件,
@@ -163,22 +163,22 @@ exit 0
 ```bash
 #!/bin/bash
 set -e
-/opt/fixit/setup.sh
+/opt/opslabs/setup.sh
 exec su - player -c "ttyd -W -p 7681 --writable bash"
 ```
 
 ### `scenarios/hello-world/Dockerfile`
 
 ```dockerfile
-FROM fixit/base:v1
+FROM opslabs/base:v1
 
 COPY entrypoint.sh /entrypoint.sh
-COPY setup.sh      /opt/fixit/setup.sh
-COPY check.sh      /opt/fixit/check.sh
+COPY setup.sh      /opt/opslabs/setup.sh
+COPY check.sh      /opt/opslabs/check.sh
 
-RUN chmod 755 /entrypoint.sh /opt/fixit/setup.sh \
-    && chmod 600 /opt/fixit/check.sh \
-    && chown root:root /opt/fixit/*
+RUN chmod 755 /entrypoint.sh /opt/opslabs/setup.sh \
+    && chmod 600 /opt/opslabs/check.sh \
+    && chown root:root /opt/opslabs/*
 
 CMD ["/entrypoint.sh"]
 ```
@@ -246,7 +246,7 @@ tags:
   - common
 
 runtime:
-  image: fixit/frontend-devserver-down:v1
+  image: opslabs/frontend-devserver-down:v1
   memory_mb: 1024
   cpus: 0.5
   idle_timeout_minutes: 30
@@ -255,7 +255,7 @@ runtime:
   variants: []
 
 grading:
-  check_script: /opt/fixit/check.sh
+  check_script: /opt/opslabs/check.sh
   check_timeout_seconds: 10
   success_output: "OK"
 
@@ -442,7 +442,7 @@ exit 0
 ### `scenarios/frontend-devserver-down/Dockerfile`
 
 ```dockerfile
-FROM fixit/base:v1
+FROM opslabs/base:v1
 
 RUN apt-get update && apt-get install -y python3 \
     && rm -rf /var/lib/apt/lists/*
@@ -460,12 +460,12 @@ RUN echo 'export NVM_DIR="/usr/local/nvm"' >> /home/player/.bashrc \
     && chown -R player:player /home/player/.bashrc $NVM_DIR
 
 COPY entrypoint.sh /entrypoint.sh
-COPY setup.sh      /opt/fixit/setup.sh
-COPY check.sh      /opt/fixit/check.sh
+COPY setup.sh      /opt/opslabs/setup.sh
+COPY check.sh      /opt/opslabs/check.sh
 
-RUN chmod 755 /entrypoint.sh /opt/fixit/setup.sh \
-    && chmod 600 /opt/fixit/check.sh \
-    && chown root:root /opt/fixit/*
+RUN chmod 755 /entrypoint.sh /opt/opslabs/setup.sh \
+    && chmod 600 /opt/opslabs/check.sh \
+    && chown root:root /opt/opslabs/*
 
 CMD ["/entrypoint.sh"]
 ```
@@ -475,7 +475,7 @@ CMD ["/entrypoint.sh"]
 ```bash
 #!/bin/bash
 set -e
-/opt/fixit/setup.sh
+/opt/opslabs/setup.sh
 exec su - player -c "ttyd -W -p 7681 --writable bash"
 ```
 
@@ -583,7 +583,7 @@ tags:
   - 500-error
 
 runtime:
-  image: fixit/backend-api-500:v1
+  image: opslabs/backend-api-500:v1
   memory_mb: 768
   cpus: 0.5
   idle_timeout_minutes: 30
@@ -593,7 +593,7 @@ runtime:
     - db-password
 
 grading:
-  check_script: /opt/fixit/check.sh
+  check_script: /opt/opslabs/check.sh
   check_timeout_seconds: 10
   success_output: "OK"
 
@@ -735,9 +735,9 @@ WantedBy=multi-user.target
 set -e
 
 mkdir -p /etc/app /opt/app /var/log/app
-cp /opt/fixit/assets/app.py         /opt/app/app.py
-cp /opt/fixit/assets/config.yaml    /etc/app/config.yaml
-cp /opt/fixit/assets/app.service    /etc/systemd/system/app.service
+cp /opt/opslabs/assets/app.py         /opt/app/app.py
+cp /opt/opslabs/assets/config.yaml    /etc/app/config.yaml
+cp /opt/opslabs/assets/app.service    /etc/systemd/system/app.service
 chmod 755 /opt/app/app.py
 
 pg_ctlcluster 14 main start || service postgresql start
@@ -805,7 +805,7 @@ exit 0
 ### `scenarios/backend-api-500/Dockerfile`
 
 ```dockerfile
-FROM fixit/base:v1
+FROM opslabs/base:v1
 
 RUN apt-get update && apt-get install -y \
     python3 python3-pip \
@@ -816,13 +816,13 @@ RUN apt-get update && apt-get install -y \
 RUN pip3 install flask psycopg2-binary pyyaml --break-system-packages
 
 COPY entrypoint.sh /entrypoint.sh
-COPY setup.sh      /opt/fixit/setup.sh
-COPY check.sh      /opt/fixit/check.sh
-COPY assets/       /opt/fixit/assets/
+COPY setup.sh      /opt/opslabs/setup.sh
+COPY check.sh      /opt/opslabs/check.sh
+COPY assets/       /opt/opslabs/assets/
 
-RUN chmod 755 /entrypoint.sh /opt/fixit/setup.sh \
-    && chmod 600 /opt/fixit/check.sh \
-    && chown root:root /opt/fixit/*
+RUN chmod 755 /entrypoint.sh /opt/opslabs/setup.sh \
+    && chmod 600 /opt/opslabs/check.sh \
+    && chown root:root /opt/opslabs/*
 
 CMD ["/entrypoint.sh"]
 ```
@@ -832,7 +832,7 @@ CMD ["/entrypoint.sh"]
 ```bash
 #!/bin/bash
 set -e
-/opt/fixit/setup.sh
+/opt/opslabs/setup.sh
 exec su - player -c "ttyd -W -p 7681 --writable bash"
 ```
 
@@ -916,7 +916,7 @@ tags:
   - 502-error
 
 runtime:
-  image: fixit/ops-nginx-upstream-fail:v1
+  image: opslabs/ops-nginx-upstream-fail:v1
   memory_mb: 512
   cpus: 0.5
   idle_timeout_minutes: 30
@@ -925,7 +925,7 @@ runtime:
   variants: []
 
 grading:
-  check_script: /opt/fixit/check.sh
+  check_script: /opt/opslabs/check.sh
   check_timeout_seconds: 10
   success_output: "OK"
 
@@ -1038,12 +1038,12 @@ WantedBy=multi-user.target
 set -e
 
 mkdir -p /opt/app
-cp /opt/fixit/assets/app.py      /opt/app/app.py
-cp /opt/fixit/assets/app.service /etc/systemd/system/app.service
+cp /opt/opslabs/assets/app.py      /opt/app/app.py
+cp /opt/opslabs/assets/app.service /etc/systemd/system/app.service
 chmod 755 /opt/app/app.py
 
 rm -f /etc/nginx/sites-enabled/default
-cp /opt/fixit/assets/default.conf /etc/nginx/conf.d/default.conf
+cp /opt/opslabs/assets/default.conf /etc/nginx/conf.d/default.conf
 
 systemctl daemon-reload
 systemctl enable app
@@ -1107,20 +1107,20 @@ exit 0
 ### `scenarios/ops-nginx-upstream-fail/Dockerfile`
 
 ```dockerfile
-FROM fixit/base:v1
+FROM opslabs/base:v1
 
 RUN apt-get update && apt-get install -y \
     nginx python3 systemd \
     && rm -rf /var/lib/apt/lists/*
 
 COPY entrypoint.sh /entrypoint.sh
-COPY setup.sh      /opt/fixit/setup.sh
-COPY check.sh      /opt/fixit/check.sh
-COPY assets/       /opt/fixit/assets/
+COPY setup.sh      /opt/opslabs/setup.sh
+COPY check.sh      /opt/opslabs/check.sh
+COPY assets/       /opt/opslabs/assets/
 
-RUN chmod 755 /entrypoint.sh /opt/fixit/setup.sh \
-    && chmod 600 /opt/fixit/check.sh \
-    && chown root:root /opt/fixit/*
+RUN chmod 755 /entrypoint.sh /opt/opslabs/setup.sh \
+    && chmod 600 /opt/opslabs/check.sh \
+    && chown root:root /opt/opslabs/*
 
 CMD ["/entrypoint.sh"]
 ```
@@ -1130,7 +1130,7 @@ CMD ["/entrypoint.sh"]
 ```bash
 #!/bin/bash
 set -e
-/opt/fixit/setup.sh
+/opt/opslabs/setup.sh
 exec su - player -c "ttyd -W -p 7681 --writable bash"
 ```
 
@@ -1194,7 +1194,7 @@ RUN curl -L -o /usr/local/bin/ttyd \
 RUN useradd -m -s /bin/bash player \
     && echo "player ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-RUN mkdir -p /opt/fixit && chmod 755 /opt/fixit
+RUN mkdir -p /opt/opslabs && chmod 755 /opt/opslabs
 
 WORKDIR /home/player
 EXPOSE 7681
@@ -1212,10 +1212,10 @@ set -e
 
 BASE_DIR=$(cd "$(dirname "$0")/.." && pwd)
 
-docker build -t fixit/base:v1 "$BASE_DIR/scenarios-build/base"
+docker build -t opslabs/base:v1 "$BASE_DIR/scenarios-build/base"
 
 for slug in hello-world frontend-devserver-down backend-api-500 ops-nginx-upstream-fail; do
-    docker build -t "fixit/$slug:v1" "$BASE_DIR/scenarios/$slug"
+    docker build -t "opslabs/$slug:v1" "$BASE_DIR/scenarios/$slug"
 done
 
 echo "all images built"
@@ -1233,8 +1233,8 @@ if [ -z "$SLUG" ]; then
     exit 1
 fi
 
-IMAGE="fixit/$SLUG:v1"
-NAME="fixit-test-$SLUG-$$"
+IMAGE="opslabs/$SLUG:v1"
+NAME="opslabs-test-$SLUG-$$"
 
 cleanup() {
     docker rm -f "$NAME" > /dev/null 2>&1 || true
@@ -1253,7 +1253,7 @@ docker cp "scenarios/$SLUG/tests/solution.sh" "$NAME:/tmp/solution.sh"
 docker exec "$NAME" bash /tmp/solution.sh
 
 echo "[3/3] check after solution (应返回 OK)..."
-result=$(docker exec "$NAME" bash /opt/fixit/check.sh | head -1)
+result=$(docker exec "$NAME" bash /opt/opslabs/check.sh | head -1)
 if [ "$result" != "OK" ]; then
     echo "FAIL: check.sh after solution = '$result'"
     exit 1

@@ -6,8 +6,10 @@ import (
 	_ "net/http/pprof"
 
 	basepb "github.com/7as0nch/backend/api/base"
+	opslabspb "github.com/7as0nch/backend/api/opslabs/v1"
 	"github.com/7as0nch/backend/internal/conf"
 	"github.com/7as0nch/backend/internal/service/base"
+	"github.com/7as0nch/backend/internal/service/opslabs"
 	"github.com/7as0nch/backend/pkg/auth"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/logging"
@@ -30,6 +32,8 @@ func NewHTTPServer(c *conf.Server,
 	authRepo auth.AuthRepo,
 	system *base.SystemService,
 	tracker *base.TrackerService,
+	scenarioServ *opslabs.ScenarioService,
+	attemptServ *opslabs.AttemptService,
 	logg log.Logger) *kratoshttp.Server {
 	tp := tracesdk.NewTracerProvider(
 		tracesdk.WithSampler(tracesdk.ParentBased(tracesdk.TraceIDRatioBased(1.0))),
@@ -56,12 +60,19 @@ func NewHTTPServer(c *conf.Server,
 			tracing.Server(),
 			auth.MiddlewareCors(),
 			selector.Server(authRepo.Server()).Match(auth.NewWhiteListMatcher(map[string]bool{
-				basepb.OperationAuthLogin:                        true,
-				basepb.OperationTrackerBatch:                     true,
-				"/auth/qq/login":                                 true,
-				"/auth/qq/callback":                              true,
-				"GET /auth/qq/login":                             true,
-				"GET /auth/qq/callback":                          true,
+				basepb.OperationAuthLogin:                       true,
+				basepb.OperationTrackerBatch:                    true,
+				"/auth/qq/login":                                true,
+				"/auth/qq/callback":                             true,
+				"GET /auth/qq/login":                            true,
+				"GET /auth/qq/callback":                         true,
+				// opslabs Week 1 尚未接入登录,整组放行
+				opslabspb.OperationScenarioListScenarios:        true,
+				opslabspb.OperationScenarioGetScenario:          true,
+				opslabspb.OperationAttemptStartScenario:         true,
+				opslabspb.OperationAttemptGetAttempt:            true,
+				opslabspb.OperationAttemptCheckAttempt:          true,
+				opslabspb.OperationAttemptTerminateAttempt:      true,
 			})).Build(),
 		),
 	}
@@ -89,6 +100,10 @@ func NewHTTPServer(c *conf.Server,
 	srv.HandleFunc("/auth/qq/callback", authServ.HandleQQCallback)
 	basepb.RegisterSystemHTTPServer(srv, system)
 	basepb.RegisterTrackerHTTPServer(srv, tracker)
+
+	// opslabs API
+	opslabspb.RegisterScenarioHTTPServer(srv, scenarioServ)
+	opslabspb.RegisterAttemptHTTPServer(srv, attemptServ)
 
 	srv.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

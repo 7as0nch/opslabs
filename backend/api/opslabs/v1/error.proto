@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package opslabs.v1;
+
+import "errors/errors.proto";
+
+option go_package = "github.com/7as0nch/backend/api/opslabs/v1;v1";
+option java_multiple_files = true;
+option java_package = "dev.kratos.api.opslabs.v1";
+option java_outer_classname = "OpslabsErrorProto";
+
+// ErrorReason opslabs 业务错误码
+enum ErrorReason {
+  // 默认未知错误
+  UNKNOWN = 0 [(errors.default_code) = 500];
+
+  // 场景 slug 不存在
+  SCENARIO_NOT_FOUND = 1 [(errors.default_code) = 404];
+
+  // Attempt id 不存在
+  ATTEMPT_NOT_FOUND = 2 [(errors.default_code) = 404];
+
+  // Attempt 已结束,不可再操作
+  ATTEMPT_NOT_RUNNING = 3 [(errors.default_code) = 409];
+
+  // 容器启动失败
+  CONTAINER_START_FAIL = 4 [(errors.default_code) = 500];
+
+  // 判题脚本执行失败
+  CHECK_EXEC_FAIL = 5 [(errors.default_code) = 500];
+
+  // 端口池耗尽
+  PORT_POOL_EXHAUSTED = 6 [(errors.default_code) = 503];
+
+  // 参数非法
+  INVALID_ARGUMENT = 7 [(errors.default_code) = 400];
+}

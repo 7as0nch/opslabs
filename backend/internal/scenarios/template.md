@@ -62,7 +62,7 @@ tags:                                                      # 自由标签,给搜
 
 # ===== 运行配置 =====
 runtime:
-  image: fixit/backend-api-500:v1                          # Docker 镜像名
+  image: opslabs/backend-api-500:v1                          # Docker 镜像名
   memory_mb: 512
   cpus: 0.5
   idle_timeout_minutes: 30
@@ -72,7 +72,7 @@ runtime:
 
 # ===== 判题配置 =====
 grading:
-  check_script: /opt/fixit/check.sh                        # 容器内绝对路径
+  check_script: /opt/opslabs/check.sh                        # 容器内绝对路径
   check_timeout_seconds: 10
   success_output: "OK"                                     # stdout 首行匹配即算通过
 
@@ -395,7 +395,7 @@ scenarios/
 ### 4.1 Dockerfile 标准
 
 ```dockerfile
-FROM fixit/base:v1
+FROM opslabs/base:v1
 
 # 场景特定的依赖(如果有)
 RUN apt-get update && apt-get install -y \
@@ -404,13 +404,13 @@ RUN apt-get update && apt-get install -y \
 
 # 拷贝资源
 COPY entrypoint.sh /entrypoint.sh
-COPY setup.sh      /opt/fixit/setup.sh
-COPY check.sh      /opt/fixit/check.sh
-COPY assets/       /opt/fixit/assets/
+COPY setup.sh      /opt/opslabs/setup.sh
+COPY check.sh      /opt/opslabs/check.sh
+COPY assets/       /opt/opslabs/assets/
 
-RUN chmod 755 /entrypoint.sh /opt/fixit/setup.sh \
-    && chmod 600 /opt/fixit/check.sh \
-    && chown root:root /opt/fixit/*
+RUN chmod 755 /entrypoint.sh /opt/opslabs/setup.sh \
+    && chmod 600 /opt/opslabs/check.sh \
+    && chown root:root /opt/opslabs/*
 
 CMD ["/entrypoint.sh"]
 ```
@@ -425,10 +425,10 @@ set -e
 VARIANT=${SCENARIO_VARIANT:-default}
 
 # 2. 跑 setup(以 root 身份,有权限埋故障)
-if [ -f "/opt/fixit/variants/${VARIANT}/setup.sh" ]; then
-    /opt/fixit/variants/${VARIANT}/setup.sh
+if [ -f "/opt/opslabs/variants/${VARIANT}/setup.sh" ]; then
+    /opt/opslabs/variants/${VARIANT}/setup.sh
 else
-    /opt/fixit/setup.sh
+    /opt/opslabs/setup.sh
 fi
 
 # 3. 切换到普通用户启动 ttyd
@@ -563,7 +563,7 @@ GET /v1/me/skills
 - [ ] difficulty 和 estimated_minutes 合理(1 星 < 5 分钟,3 星 10-15 分钟)
 
 ## 文件规范
-- [ ] Dockerfile 继承自 fixit/base:v1
+- [ ] Dockerfile 继承自 opslabs/base:v1
 - [ ] check.sh 遵守 OK/NO 约定
 - [ ] check.sh 幂等,多次调用结果一致
 - [ ] tests/solution.sh 存在且能通关

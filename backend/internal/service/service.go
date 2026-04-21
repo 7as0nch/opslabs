@@ -8,6 +8,7 @@ package service
 
 import (
 	"github.com/7as0nch/backend/internal/service/base"
+	"github.com/7as0nch/backend/internal/service/opslabs"
 	"github.com/google/wire"
 )
 
@@ -16,4 +17,6 @@ var ProviderSet = wire.NewSet(
 	base.NewAuthService,
 	base.NewSystemService,
 	base.NewTrackerService,
+	opslabs.NewScenarioService,
+	opslabs.NewAttemptService,
 )

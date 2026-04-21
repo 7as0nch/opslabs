@@ -29,7 +29,7 @@ func (w GormZapWriter) Printf(format string, args ...interface{}) {
 func NewPostgresDB(conf *conf.Bootstrap, log *zap.Logger) (*gorm.DB, error) {
 	pgConfig := conf.Data.PgDatabase
 	// 构建 DSN (Data Source Name)
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s search_path=aichat",
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s search_path=opslabs",
 		pgConfig.Host,
 		pgConfig.Port,
 		pgConfig.User,
