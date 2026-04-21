@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import { Attempt } from '../types'
 
 // 当前 attempt 的 UI 状态:最近一次拿到的 Attempt 快照 + 已解锁提示档位
@@ -12,11 +13,18 @@ interface State {
   reset: () => void
 }
 
-export const useAttemptStore = create<State>((set) => ({
-  current: undefined,
-  hintLevel: 0,
-  set: (a) => set({ current: a }),
-  patch: (p) => set((s) => ({ current: s.current ? { ...s.current, ...p } : undefined })),
-  unlockHint: (level) => set((s) => ({ hintLevel: Math.max(s.hintLevel, level) })),
-  reset: () => set({ current: undefined, hintLevel: 0 }),
-}))
+export const useAttemptStore = create<State>()(
+  persist(
+    (set) => ({
+      current: undefined,
+      hintLevel: 0,
+      set: (a) => set({ current: a }),
+      patch: (p) => set((s) => ({ current: s.current ? { ...s.current, ...p } : undefined })),
+      unlockHint: (level) => set((s) => ({ hintLevel: Math.max(s.hintLevel, level) })),
+      reset: () => set({ current: undefined, hintLevel: 0 }),
+    }),
+    {
+      name: 'attempt-storage',
+    }
+  )
+)
