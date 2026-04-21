@@ -5,9 +5,9 @@ import (
 	"flag"
 	"os"
 
-	"github.com/example/aichat/backend/internal/conf"
-	"github.com/example/aichat/backend/internal/server"
-	"github.com/example/aichat/backend/pkg/auth"
+	"github.com/7as0nch/backend/internal/conf"
+	"github.com/7as0nch/backend/internal/server"
+	"github.com/7as0nch/backend/pkg/auth"
 
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/config"

@@ -8,9 +8,9 @@ package base
 import (
 	"context"
 
-	pb "github.com/example/aichat/backend/api/base"
-	"github.com/example/aichat/backend/internal/biz/base"
-	"github.com/example/aichat/backend/models/generator/model"
+	pb "github.com/7as0nch/backend/api/base"
+	"github.com/7as0nch/backend/internal/biz/base"
+	"github.com/7as0nch/backend/models/generator/model"
 )
 
 type TrackerService struct {

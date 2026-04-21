@@ -8,7 +8,7 @@ package db
 import (
 	"context"
 
-	"github.com/example/aichat/backend/internal/conf"
+	"github.com/7as0nch/backend/internal/conf"
 	"go.uber.org/zap"
 
 	"github.com/go-kratos/kratos/v2/log"
@@ -102,4 +102,3 @@ func NewMysqlDB(source string) *gorm.DB {
 func NewRedisRepo(d DataRepo) RedisRepo {
 	return d.Redis()
 }
-

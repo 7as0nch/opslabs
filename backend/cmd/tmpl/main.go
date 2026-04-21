@@ -7,8 +7,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/example/aichat/backend/models/generator/model"
-	myStrings "github.com/example/aichat/backend/tools/strings"
+	"github.com/7as0nch/backend/models/generator/model"
+	myStrings "github.com/7as0nch/backend/tools/strings"
 )
 
 type TemplateData struct {
@@ -39,7 +39,7 @@ func main() {
 	// 填充模板变量
 	data := TemplateData{
 		Package:   "data",
-		ModelPath: "github.com/example/aichat/backend/models/generator/model",
+		ModelPath: "github.com/7as0nch/backend/models/generator/model",
 		ModelName: modelName,
 		RepoName:  repoName,
 	}

@@ -8,17 +8,17 @@ package data
 import (
 	"context"
 
-	"github.com/example/aichat/backend/internal/biz/base"
-	"github.com/example/aichat/backend/internal/db"
-	"github.com/example/aichat/backend/models/generator/model"
-	"github.com/example/aichat/backend/models/generator/query"
+	"github.com/7as0nch/backend/internal/biz/base"
+	"github.com/7as0nch/backend/internal/db"
+	"github.com/7as0nch/backend/models/generator/model"
+	"github.com/7as0nch/backend/models/generator/query"
 	"go.uber.org/zap"
 )
 
 type sysMenuRepo struct {
 	db    db.DataRepo
 	log   *zap.Logger
-	query *query.Query  // 存储预编译的查询实例，避免重复获取DB连接
+	query *query.Query // 存储预编译的查询实例，避免重复获取DB连接
 }
 
 func NewSysMenuRepo(db db.DataRepo, log *zap.Logger) base.SysMenuRepo {

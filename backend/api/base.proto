@@ -4,7 +4,7 @@ package api;
 
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
-option go_package = "github.com/example/aichat/backend/api;api";
+option go_package = "github.com/7as0nch/backend/api;api";
 option java_multiple_files = true;
 option java_package = "dev.kratos.api";
 option java_outer_classname = "ApiProto";

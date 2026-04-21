@@ -7,11 +7,12 @@ package agent
 
 import (
 	"context"
+
+	"github.com/7as0nch/backend/pkg/ai"
+	"github.com/7as0nch/backend/pkg/ai/chatmodel"
+	"github.com/7as0nch/backend/pkg/ai/tool"
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/compose"
-	"github.com/example/aichat/backend/pkg/ai"
-	"github.com/example/aichat/backend/pkg/ai/chatmodel"
-	"github.com/example/aichat/backend/pkg/ai/tool"
 )
 
 func NewGlobalAgent(ctx context.Context, config *ai.AgentConfig) (adk.Agent, error) {

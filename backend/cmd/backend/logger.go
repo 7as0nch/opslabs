@@ -9,8 +9,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/example/aichat/backend/internal/conf"
-	"github.com/example/aichat/backend/pkg/logger"
+	"github.com/7as0nch/backend/internal/conf"
+	"github.com/7as0nch/backend/pkg/logger"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"go.uber.org/zap"

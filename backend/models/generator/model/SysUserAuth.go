@@ -3,7 +3,7 @@ package model
 import (
 	"strings"
 
-	"github.com/example/aichat/backend/models"
+	"github.com/7as0nch/backend/models"
 )
 
 const TableNameSysUserAuth = "sys_user_auth"
@@ -68,4 +68,3 @@ func (*SysUserAuth) TableName() string {
 func (m *SysUserAuth) New() {
 	m.Model.New()
 }
-

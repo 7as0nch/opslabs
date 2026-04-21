@@ -3,7 +3,7 @@ package generator
 import (
 	"testing"
 
-	"github.com/example/aichat/backend/models/generator/model"
+	"github.com/7as0nch/backend/models/generator/model"
 	"gorm.io/driver/postgres"
 	"gorm.io/gen"
 	"gorm.io/gorm"
@@ -74,13 +74,13 @@ func TestMigrate(t *testing.T) {
 	// var modelInterface ModelInterface = &model.SysMenu{}
 
 	err := gormdb.Migrator().AutoMigrate(
-		// model.AIAgent{},
-		// model.AITool{},
-		// model.AIToolAgentBind{},
-		// model.AIModel{},
-		// model.AIPromptTemplate{},
-		// model.AIWorkflow{},
-		// model.AIApplication{},
+	// model.AIAgent{},
+	// model.AITool{},
+	// model.AIToolAgentBind{},
+	// model.AIModel{},
+	// model.AIPromptTemplate{},
+	// model.AIWorkflow{},
+	// model.AIApplication{},
 	)
 	if err != nil {
 		t.Logf("迁移失败: %v", err)

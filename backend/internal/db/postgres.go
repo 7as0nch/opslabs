@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/example/aichat/backend/internal/conf"
-	"github.com/example/aichat/backend/models"
-	"github.com/example/aichat/backend/pkg/auth"
+	"github.com/7as0nch/backend/internal/conf"
+	"github.com/7as0nch/backend/models"
+	"github.com/7as0nch/backend/pkg/auth"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

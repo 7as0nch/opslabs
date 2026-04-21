@@ -9,7 +9,7 @@ package test
 import (
 	"testing"
 
-	"github.com/example/aichat/backend/tools"
+	"github.com/7as0nch/backend/tools"
 )
 
 // test snowflake id

@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/7as0nch/backend/pkg/lib"
 	"github.com/bwmarrin/snowflake"
-	"github.com/example/aichat/backend/pkg/lib"
 )
 
 // 支持 2 ^ 8 - 1 台机器
@@ -75,37 +75,36 @@ func testGetId() {
 	fmt.Printf("%+v\n", arr)
 }
 
-
 var Node *snowflake.Node
 
 func init() {
 	// 1. 【修改这里】设置起始时间 (Epoch)
-    // 必须在 NewNode 之前设置。
-    // 这里设置为 2025-01-01 00:00:00 UTC 的毫秒时间戳
-    // 你也可以直接写死一个 int64 数字，比如 1735689600000
-    // st := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-    // snowflake.Epoch = st.UnixMilli()
+	// 必须在 NewNode 之前设置。
+	// 这里设置为 2025-01-01 00:00:00 UTC 的毫秒时间戳
+	// 你也可以直接写死一个 int64 数字，比如 1735689600000
+	// st := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	// snowflake.Epoch = st.UnixMilli()
 	//
-    ip := lib.GetIP()
-    var seed int
-    var err error
-    if ip == "" {
-        seed = 1
-    } else {
-        arr := strings.Split(ip, ".")
-        lastOne := arr[3]
-        seed, err = strconv.Atoi(lastOne)
-        if err != nil {
-            panic(err)
-        }
-    }
-    idGenerator, err := snowflake.NewNode(int64(seed))
-    if err != nil {
-        panic(err)
-    }
-    Node = idGenerator
+	ip := lib.GetIP()
+	var seed int
+	var err error
+	if ip == "" {
+		seed = 1
+	} else {
+		arr := strings.Split(ip, ".")
+		lastOne := arr[3]
+		seed, err = strconv.Atoi(lastOne)
+		if err != nil {
+			panic(err)
+		}
+	}
+	idGenerator, err := snowflake.NewNode(int64(seed))
+	if err != nil {
+		panic(err)
+	}
+	Node = idGenerator
 }
 
 func GetSFID() int64 {
-    return Node.Generate().Int64()
+	return Node.Generate().Int64()
 }

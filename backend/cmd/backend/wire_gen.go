@@ -7,20 +7,18 @@
 package main
 
 import (
-	"github.com/example/aichat/backend/internal/biz/base"
-	"github.com/example/aichat/backend/internal/biz/base/loginprovider"
-	"github.com/example/aichat/backend/internal/conf"
-	"github.com/example/aichat/backend/internal/data"
-	"github.com/example/aichat/backend/internal/db"
-	"github.com/example/aichat/backend/internal/server"
-	base2 "github.com/example/aichat/backend/internal/service/base"
-	"github.com/example/aichat/backend/pkg/auth"
+	"github.com/7as0nch/backend/internal/biz/base"
+	"github.com/7as0nch/backend/internal/biz/base/loginprovider"
+	"github.com/7as0nch/backend/internal/conf"
+	"github.com/7as0nch/backend/internal/data"
+	"github.com/7as0nch/backend/internal/db"
+	"github.com/7as0nch/backend/internal/server"
+	base2 "github.com/7as0nch/backend/internal/service/base"
+	"github.com/7as0nch/backend/pkg/auth"
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/log"
 	"go.uber.org/zap"
-)
 
-import (
 	_ "go.uber.org/automaxprocs"
 )
 

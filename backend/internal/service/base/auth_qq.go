@@ -5,8 +5,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/example/aichat/backend/internal/biz/base/loginprovider"
-	"github.com/example/aichat/backend/models/generator/model"
+	"github.com/7as0nch/backend/internal/biz/base/loginprovider"
+	"github.com/7as0nch/backend/models/generator/model"
 	"github.com/go-kratos/kratos/v2/log"
 )
 
@@ -67,5 +67,3 @@ func appendQuery(rawURL, key, value string) string {
 	}
 	return u.String()
 }
-
-

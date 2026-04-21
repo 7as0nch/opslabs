@@ -8,14 +8,14 @@ package adapter
 import (
 	"context"
 
+	"github.com/7as0nch/backend/pkg/agenttools"
+	"github.com/7as0nch/backend/pkg/ai"
+	"github.com/7as0nch/backend/pkg/ai/chatmodel"
+	"github.com/7as0nch/backend/pkg/ai/prints"
+	"github.com/7as0nch/backend/pkg/ai/tool"
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
-	"github.com/example/aichat/backend/pkg/agenttools"
-	"github.com/example/aichat/backend/pkg/ai"
-	"github.com/example/aichat/backend/pkg/ai/chatmodel"
-	"github.com/example/aichat/backend/pkg/ai/prints"
-	"github.com/example/aichat/backend/pkg/ai/tool"
 )
 
 // EinoAdapter eino ChatModelAgent 适配器
@@ -72,10 +72,10 @@ func NewEinoAdapter(ctx context.Context, config *ai.AgentConfig, subAgents []ai.
 				Tools: tools, // 工具可以后续扩展
 			},
 		},
-// 		Instruction: `
-// Notice:
-// 1. Tool Calls argument must be a valid json.
-// 2. Tool Calls argument should do not contains invalid suffix like ']<|FunctionCallEnd|>'.`,
+		// 		Instruction: `
+		// Notice:
+		// 1. Tool Calls argument must be a valid json.
+		// 2. Tool Calls argument should do not contains invalid suffix like ']<|FunctionCallEnd|>'.`,
 	}
 	agent, err := adk.NewChatModelAgent(ctx, agentConfig)
 	if err != nil {

@@ -7,7 +7,7 @@ package service
 **/
 
 import (
-	"github.com/example/aichat/backend/internal/service/base"
+	"github.com/7as0nch/backend/internal/service/base"
 	"github.com/google/wire"
 )
 

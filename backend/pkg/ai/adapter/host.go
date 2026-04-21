@@ -12,11 +12,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/7as0nch/backend/pkg/ai"
+	"github.com/7as0nch/backend/pkg/ai/chatmodel"
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/flow/agent/multiagent/host"
 	"github.com/cloudwego/eino/schema"
-	"github.com/example/aichat/backend/pkg/ai"
-	"github.com/example/aichat/backend/pkg/ai/chatmodel"
 
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/flow/agent"
@@ -46,7 +46,7 @@ func NewHost(ctx context.Context, config *ai.AgentConfig, subAgents []ai.Agent) 
 		return nil, err
 	}
 	t := &HostAdapter{
-		cm: cm,
+		cm:     cm,
 		config: config,
 	}
 	ws, err := t.newWriteJournalSpecialist(ctx)

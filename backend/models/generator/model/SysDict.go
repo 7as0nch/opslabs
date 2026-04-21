@@ -5,7 +5,7 @@
 **/
 package model
 
-import "github.com/example/aichat/backend/models"
+import "github.com/7as0nch/backend/models"
 
 // "dictCode": "5",
 //

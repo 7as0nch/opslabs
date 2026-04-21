@@ -6,16 +6,16 @@
 package main
 
 import (
-	"github.com/example/aichat/backend/internal/biz"
-	"github.com/example/aichat/backend/internal/conf"
-	"github.com/example/aichat/backend/internal/data"
-	"github.com/example/aichat/backend/internal/server"
-	"github.com/example/aichat/backend/internal/service"
+	"github.com/7as0nch/backend/internal/biz"
+	"github.com/7as0nch/backend/internal/conf"
+	"github.com/7as0nch/backend/internal/data"
+	"github.com/7as0nch/backend/internal/server"
+	"github.com/7as0nch/backend/internal/service"
 
-	"go.uber.org/zap"
 	"github.com/go-kratos/kratos/v2"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
+	"go.uber.org/zap"
 )
 
 // wireApp init kratos application.

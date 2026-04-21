@@ -1,4 +1,4 @@
-module github.com/example/aichat/backend
+module github.com/7as0nch/backend
 
 go 1.25.3
 

@@ -1,9 +1,9 @@
 package server
 
 import (
-	basepb "github.com/example/aichat/backend/api/base"
-	"github.com/example/aichat/backend/internal/conf"
-	"github.com/example/aichat/backend/internal/service/base"
+	basepb "github.com/7as0nch/backend/api/base"
+	"github.com/7as0nch/backend/internal/conf"
+	"github.com/7as0nch/backend/internal/service/base"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/logging"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"

@@ -7,18 +7,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/example/aichat/backend/tools"
-	myStrings "github.com/example/aichat/backend/tools/strings"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/7as0nch/backend/tools"
+	myStrings "github.com/7as0nch/backend/tools/strings"
 	kerrors "github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/metadata"
 	"github.com/go-kratos/kratos/v2/middleware"
 	"github.com/go-kratos/kratos/v2/transport"
 	"github.com/golang-jwt/jwt/v4"
-	"strconv"
-	"strings"
-	"time"
 )
-
 
 type authRepo struct {
 	signingKey []byte

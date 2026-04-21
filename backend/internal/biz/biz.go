@@ -7,7 +7,7 @@ package biz
 **/
 
 import (
-	"github.com/example/aichat/backend/internal/biz/base"
+	"github.com/7as0nch/backend/internal/biz/base"
 	"github.com/google/wire"
 )
 

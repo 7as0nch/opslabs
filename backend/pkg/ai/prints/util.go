@@ -6,9 +6,9 @@ import (
 	"io"
 	"log"
 
+	"github.com/7as0nch/backend/pkg/ai"
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
-	"github.com/example/aichat/backend/pkg/ai"
 	// "github.com/cloudwego/eino-examples/internal/logs"
 )
 

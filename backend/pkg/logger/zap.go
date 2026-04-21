@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/example/aichat/backend/pkg/lib"
+	"github.com/7as0nch/backend/pkg/lib"
 
 	"dario.cat/mergo"
 	"go.uber.org/zap"

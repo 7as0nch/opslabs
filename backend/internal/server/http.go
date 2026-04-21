@@ -5,10 +5,10 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
-	basepb "github.com/example/aichat/backend/api/base"
-	"github.com/example/aichat/backend/internal/conf"
-	"github.com/example/aichat/backend/internal/service/base"
-	"github.com/example/aichat/backend/pkg/auth"
+	basepb "github.com/7as0nch/backend/api/base"
+	"github.com/7as0nch/backend/internal/conf"
+	"github.com/7as0nch/backend/internal/service/base"
+	"github.com/7as0nch/backend/pkg/auth"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/logging"
 	"github.com/go-kratos/kratos/v2/middleware/metrics"
@@ -56,13 +56,12 @@ func NewHTTPServer(c *conf.Server,
 			tracing.Server(),
 			auth.MiddlewareCors(),
 			selector.Server(authRepo.Server()).Match(auth.NewWhiteListMatcher(map[string]bool{
-				basepb.OperationAuthLogin:             true,
-				basepb.OperationTrackerBatch:          true,
-				basepb.OperationBetaApplicationCreateApplication: true,
-				"/auth/qq/login":                    true,
-				"/auth/qq/callback":                 true,
-				"GET /auth/qq/login":                true,
-				"GET /auth/qq/callback":             true,
+				basepb.OperationAuthLogin:                        true,
+				basepb.OperationTrackerBatch:                     true,
+				"/auth/qq/login":                                 true,
+				"/auth/qq/callback":                              true,
+				"GET /auth/qq/login":                             true,
+				"GET /auth/qq/callback":                          true,
 			})).Build(),
 		),
 	}

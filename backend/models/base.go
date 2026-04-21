@@ -1,7 +1,7 @@
 package models
 
 import (
-	"github.com/example/aichat/backend/tools"
+	"github.com/7as0nch/backend/tools"
 	"gorm.io/plugin/soft_delete"
 )
 

@@ -5,10 +5,10 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/example/aichat/backend/internal/biz/base"
-	"github.com/example/aichat/backend/internal/db"
-	"github.com/example/aichat/backend/models/generator/model"
-	"github.com/example/aichat/backend/models/generator/query"
+	"github.com/7as0nch/backend/internal/biz/base"
+	"github.com/7as0nch/backend/internal/db"
+	"github.com/7as0nch/backend/models/generator/model"
+	"github.com/7as0nch/backend/models/generator/query"
 	"gorm.io/gorm"
 )
 
@@ -109,5 +109,3 @@ func (r *sysUserRepo) CreateUserAuth(ctx context.Context, userAuth *model.SysUse
 func (r *sysUserRepo) UpdateUserAuth(ctx context.Context, userAuth *model.SysUserAuth) error {
 	return r.db.DB(ctx).Save(userAuth).Error
 }
-
-

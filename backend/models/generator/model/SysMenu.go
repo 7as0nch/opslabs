@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/example/aichat/backend/models"
+	"github.com/7as0nch/backend/models"
 )
 
 const TableNameSysMenu = "sys_menu"

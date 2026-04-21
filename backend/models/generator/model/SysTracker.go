@@ -6,7 +6,7 @@
 package model
 
 import (
-	"github.com/example/aichat/backend/models"
+	"github.com/7as0nch/backend/models"
 )
 
 const TableNameSysTracker = "sys_tracker"

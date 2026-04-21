@@ -9,14 +9,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/7as0nch/backend/pkg/ai"
+	"github.com/7as0nch/backend/pkg/ai/chatmodel"
+	"github.com/7as0nch/backend/pkg/ai/prints"
+	"github.com/7as0nch/backend/pkg/ai/tool"
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/adk/prebuilt/deep"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
-	"github.com/example/aichat/backend/pkg/ai"
-	"github.com/example/aichat/backend/pkg/ai/chatmodel"
-	"github.com/example/aichat/backend/pkg/ai/prints"
-	"github.com/example/aichat/backend/pkg/ai/tool"
 )
 
 // DeepAdkAdapter DeepADK 适配器
@@ -180,8 +180,8 @@ func (a *DeepAdkAdapter) convertToAdkMessages(msgs []*ai.Message) []adk.Message 
 				%s
 				---
 				## user input:
-				%s`, 
-				msg.QuoteContent, msg.Content)
+				%s`,
+					msg.QuoteContent, msg.Content)
 			}
 		}
 		result = append(result, t)

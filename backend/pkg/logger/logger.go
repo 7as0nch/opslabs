@@ -6,7 +6,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/example/aichat/backend/pkg/lib"
+	"github.com/7as0nch/backend/pkg/lib"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

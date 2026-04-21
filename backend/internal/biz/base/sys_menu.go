@@ -8,7 +8,7 @@ package base
 import (
 	"context"
 
-	"github.com/example/aichat/backend/models/generator/model"
+	"github.com/7as0nch/backend/models/generator/model"
 )
 
 type SysMenuRepo interface {

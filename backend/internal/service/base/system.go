@@ -4,18 +4,18 @@ import (
 	"context"
 	"strconv"
 
-	pb "github.com/example/aichat/backend/api/base"
-	"github.com/example/aichat/backend/internal/biz/base"
-	"github.com/example/aichat/backend/models"
-	"github.com/example/aichat/backend/models/generator/model"
+	pb "github.com/7as0nch/backend/api/base"
+	"github.com/7as0nch/backend/internal/biz/base"
+	"github.com/7as0nch/backend/models"
+	"github.com/7as0nch/backend/models/generator/model"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type SystemService struct {
 	pb.UnimplementedSystemServer
-	menu      *base.SysMenuUseCase
-	dictType  *base.DictTypeUseCase
-	dictData  *base.DictDataUseCase
+	menu     *base.SysMenuUseCase
+	dictType *base.DictTypeUseCase
+	dictData *base.DictDataUseCase
 }
 
 func NewSystemService(menu *base.SysMenuUseCase, dictType *base.DictTypeUseCase, dictData *base.DictDataUseCase) *SystemService {
@@ -77,17 +77,17 @@ func (s *SystemService) AllMenu(ctx context.Context, req *emptypb.Empty) (*pb.Al
 			Component:  m.Component,
 			Query:      "",
 			IsFrame:    "1",
-			IsCache:    func() string {
+			IsCache: func() string {
 				if m.Meta.NoCache {
 					return "1"
 				}
 				return "0"
 			}(),
-			MenuType:   m.Type.String(),
-			Visible:    "1",
-			Status:     m.Status.String(),
-			Perms:      m.PermsCode,
-			Icon:       m.Meta.Icon,
+			MenuType: m.Type.String(),
+			Visible:  "1",
+			Status:   m.Status.String(),
+			Perms:    m.PermsCode,
+			Icon:     m.Meta.Icon,
 		})
 	}
 	return &pb.AllMenuReply{
@@ -182,27 +182,27 @@ func (s *SystemService) GetSysMenu(ctx context.Context, req *pb.GetSysMenuReques
 		return nil, err
 	}
 	return &pb.MenuItem{
-			CreateBy:   "",
-			CreateTime: m.CreatedAt.String(),
-			UpdateBy:   "",
-			UpdateTime: m.UpdatedAt.String(),
-			Remark:     "",
-			MenuId:     m.ID,
-			MenuName:   m.Meta.Title,
-			ParentId:   m.ParentID,
-			ParentName: "",
-			OrderNum:   int32(m.Sort),
-			Path:       m.Path,
-			Component:  m.Component,
-			Query:      "",
-			IsFrame:    "1",
-			IsCache:    "1",
-			MenuType:   m.Type.String(),
-			Visible:    "1",
-			Status:     "1",
-			Perms:      m.PermsCode,
-			Icon:       m.Meta.Icon,
-		}, nil
+		CreateBy:   "",
+		CreateTime: m.CreatedAt.String(),
+		UpdateBy:   "",
+		UpdateTime: m.UpdatedAt.String(),
+		Remark:     "",
+		MenuId:     m.ID,
+		MenuName:   m.Meta.Title,
+		ParentId:   m.ParentID,
+		ParentName: "",
+		OrderNum:   int32(m.Sort),
+		Path:       m.Path,
+		Component:  m.Component,
+		Query:      "",
+		IsFrame:    "1",
+		IsCache:    "1",
+		MenuType:   m.Type.String(),
+		Visible:    "1",
+		Status:     "1",
+		Perms:      m.PermsCode,
+		Icon:       m.Meta.Icon,
+	}, nil
 }
 
 // ==================== 字典类型管理接口 ====================
@@ -213,19 +213,19 @@ func (s *SystemService) DictTypeList(ctx context.Context, req *pb.DictTypeListRe
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var pbTypes = make([]*pb.DictType, 0, len(types))
 	for _, t := range types {
 		pbTypes = append(pbTypes, &pb.DictType{
-			DictId:    t.ID,
-			DictName:  t.DictName,
-			DictType:  t.DictType,
-			Status:    t.Status.String(),
-			Remark:    t.Remark,
+			DictId:     t.ID,
+			DictName:   t.DictName,
+			DictType:   t.DictType,
+			Status:     t.Status.String(),
+			Remark:     t.Remark,
 			CreateTime: t.CreatedAt.Unix(),
 		})
 	}
-	
+
 	return &pb.DictTypeListReply{
 		List:  pbTypes,
 		Total: int32(total),
@@ -238,13 +238,13 @@ func (s *SystemService) DictTypeById(ctx context.Context, req *pb.DictRequest) (
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &pb.DictType{
-		DictId:    typ.ID,
-		DictName:  typ.DictName,
-		DictType:  typ.DictType,
-		Status:    typ.Status.String(),
-		Remark:    typ.Remark,
+		DictId:     typ.ID,
+		DictName:   typ.DictName,
+		DictType:   typ.DictType,
+		Status:     typ.Status.String(),
+		Remark:     typ.Remark,
 		CreateTime: typ.CreatedAt.Unix(),
 	}, nil
 }
@@ -258,7 +258,7 @@ func (s *SystemService) AddDictType(ctx context.Context, req *pb.DictType) (*emp
 		Status:   models.ToStatus(req.Status),
 	}
 	typ.New()
-	
+
 	err := s.dictType.AddDictType(ctx, typ)
 	if err != nil {
 		return nil, err
@@ -299,26 +299,26 @@ func (s *SystemService) DictDataList(ctx context.Context, req *pb.DictDataListRe
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var pbDatas = make([]*pb.DictData, 0, len(datas))
 	for _, d := range datas {
-			isDefaultStr := "N"
-			if d.IsDefault {
-				isDefaultStr = "Y"
-			}
-			pbDatas = append(pbDatas, &pb.DictData{
-				DictCode:   d.DictCode,
-				DictSort:   int32(d.DictSort),
-				DictLabel:  d.DictLabel,
-				DictValue:  d.DictValue,
-				DictType:   d.DictType,
-				ListClass:  d.ListClass,
-				IsDefault:  isDefaultStr,
-				Status:     d.Status.String(),
-				CreateTime: d.CreatedAt.String(),
-			})
+		isDefaultStr := "N"
+		if d.IsDefault {
+			isDefaultStr = "Y"
 		}
-	
+		pbDatas = append(pbDatas, &pb.DictData{
+			DictCode:   d.DictCode,
+			DictSort:   int32(d.DictSort),
+			DictLabel:  d.DictLabel,
+			DictValue:  d.DictValue,
+			DictType:   d.DictType,
+			ListClass:  d.ListClass,
+			IsDefault:  isDefaultStr,
+			Status:     d.Status.String(),
+			CreateTime: d.CreatedAt.String(),
+		})
+	}
+
 	return &pb.DictDataListReply{
 		List:  pbDatas,
 		Total: int32(total),
@@ -331,26 +331,26 @@ func (s *SystemService) DictDataListByType(ctx context.Context, req *pb.DictData
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var pbDatas = make([]*pb.DictData, 0, len(datas))
 	for _, d := range datas {
-			isDefaultStr := "N"
-			if d.IsDefault {
-				isDefaultStr = "Y"
-			}
-			pbDatas = append(pbDatas, &pb.DictData{
-				DictCode:   d.DictCode,
-				DictSort:   int32(d.DictSort),
-				DictLabel:  d.DictLabel,
-				DictValue:  d.DictValue,
-				DictType:   d.DictType,
-				ListClass:  d.ListClass,
-				IsDefault:  isDefaultStr,
-				Status:     d.Status.String(),
-				CreateTime: d.CreatedAt.String(),
-			})
+		isDefaultStr := "N"
+		if d.IsDefault {
+			isDefaultStr = "Y"
 		}
-	
+		pbDatas = append(pbDatas, &pb.DictData{
+			DictCode:   d.DictCode,
+			DictSort:   int32(d.DictSort),
+			DictLabel:  d.DictLabel,
+			DictValue:  d.DictValue,
+			DictType:   d.DictType,
+			ListClass:  d.ListClass,
+			IsDefault:  isDefaultStr,
+			Status:     d.Status.String(),
+			CreateTime: d.CreatedAt.String(),
+		})
+	}
+
 	return &pb.DictDataListReply{
 		List:  pbDatas,
 		Total: int32(len(pbDatas)),
@@ -363,12 +363,12 @@ func (s *SystemService) DictDataById(ctx context.Context, req *pb.DictRequest) (
 	if err != nil {
 		return nil, err
 	}
-	
+
 	isDefaultStr := "N"
 	if d.IsDefault {
 		isDefaultStr = "Y"
 	}
-	
+
 	return &pb.DictData{
 		DictCode:   d.DictCode,
 		DictSort:   int32(d.DictSort),

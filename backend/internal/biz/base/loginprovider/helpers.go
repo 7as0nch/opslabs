@@ -6,9 +6,9 @@ import (
 	"encoding/hex"
 	"strings"
 
-	"github.com/example/aichat/backend/models"
-	"github.com/example/aichat/backend/models/generator/model"
-	"github.com/example/aichat/backend/pkg/auth"
+	"github.com/7as0nch/backend/models"
+	"github.com/7as0nch/backend/models/generator/model"
+	"github.com/7as0nch/backend/pkg/auth"
 	kerrors "github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/log"
 	"golang.org/x/crypto/bcrypt"

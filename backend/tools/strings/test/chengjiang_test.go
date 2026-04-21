@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	myStrings "github.com/example/aichat/backend/tools/strings"
+	myStrings "github.com/7as0nch/backend/tools/strings"
 )
 
 func TestStrBuilder(t *testing.T) {

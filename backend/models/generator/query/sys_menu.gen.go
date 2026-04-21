@@ -17,7 +17,7 @@ import (
 
 	"gorm.io/plugin/dbresolver"
 
-	"github.com/example/aichat/backend/models/generator/model"
+	"github.com/7as0nch/backend/models/generator/model"
 )
 
 func newSysMenu(db *gorm.DB, opts ...gen.DOOption) sysMenu {

@@ -4,11 +4,11 @@ import (
 	"context"
 	"strings"
 
-	"github.com/example/aichat/backend/internal/biz/base/loginprovider"
-	"github.com/example/aichat/backend/internal/conf"
-	"github.com/example/aichat/backend/models"
-	"github.com/example/aichat/backend/models/generator/model"
-	"github.com/example/aichat/backend/pkg/auth"
+	"github.com/7as0nch/backend/internal/biz/base/loginprovider"
+	"github.com/7as0nch/backend/internal/conf"
+	"github.com/7as0nch/backend/models"
+	"github.com/7as0nch/backend/models/generator/model"
+	"github.com/7as0nch/backend/pkg/auth"
 	kerrors "github.com/go-kratos/kratos/v2/errors"
 )
 
@@ -135,4 +135,3 @@ func (s *SysUserUseCase) GetInfo(ctx context.Context) (*model.SysUser, error) {
 func (s *SysUserUseCase) Logout(ctx context.Context) error {
 	return nil
 }
-

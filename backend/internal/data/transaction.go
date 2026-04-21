@@ -1,8 +1,8 @@
 package data
 
 import (
-	"github.com/example/aichat/backend/internal/biz/base"
-	"github.com/example/aichat/backend/internal/db"
+	"github.com/7as0nch/backend/internal/biz/base"
+	"github.com/7as0nch/backend/internal/db"
 )
 
 func NewTransaction(d db.DataRepo) base.Transaction {

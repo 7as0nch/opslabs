@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/aichat/backend/pkg/auth"
+	"github.com/7as0nch/backend/pkg/auth"
 
 	"github.com/golang-jwt/jwt/v4"
 

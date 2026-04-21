@@ -3,10 +3,10 @@ package base
 import (
 	"context"
 
-	pb "github.com/example/aichat/backend/api/base"
-	"github.com/example/aichat/backend/internal/biz/base/loginprovider"
-	"github.com/example/aichat/backend/internal/biz/base"
-	"github.com/example/aichat/backend/models/generator/model"
+	pb "github.com/7as0nch/backend/api/base"
+	"github.com/7as0nch/backend/internal/biz/base"
+	"github.com/7as0nch/backend/internal/biz/base/loginprovider"
+	"github.com/7as0nch/backend/models/generator/model"
 	kerrors "github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/log"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -63,7 +63,7 @@ func (s *AuthService) GetInfo(ctx context.Context, _ *emptypb.Empty) (*pb.GetInf
 			UserName: user.Name,
 			Avatar:   user.Avatar,
 		},
-		Roles: []string{"superadmin"},
+		Roles:       []string{"superadmin"},
 		Permissions: []string{"*:*:*"},
 	}, nil
 }
@@ -112,4 +112,3 @@ func (s *AuthService) GetProfile(ctx context.Context, req *emptypb.Empty) (*pb.G
 func (s *AuthService) UpdatePwd(ctx context.Context, req *pb.UpdatePwdRequest) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, nil
 }
-

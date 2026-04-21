@@ -9,7 +9,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/example/aichat/backend/internal/conf"
+	"github.com/7as0nch/backend/internal/conf"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
