@@ -20,9 +20,13 @@ interface Envelope {
   message?: string
 }
 
+// 默认 30s 超时 —— 后端 Start 场景涉及 docker run + DB 写入,15s 一般够,
+// 留点冗余给 DB 抖动。超时会抛 TimeoutError,React Query 的 onError 能捕获
+const DEFAULT_TIMEOUT_MS = 30_000
+
 export async function request<T>(
   path: string,
-  init?: RequestInit & { json?: unknown },
+  init?: RequestInit & { json?: unknown; timeoutMs?: number },
 ): Promise<T> {
   const headers = new Headers(init?.headers)
   headers.set('accept', 'application/json')
@@ -33,7 +37,26 @@ export async function request<T>(
     body = JSON.stringify(init.json)
   }
 
-  const res = await fetch(path, { ...init, headers, body })
+  // AbortController 给请求加超时 —— fetch 自身没有超时语义
+  const ctrl = new AbortController()
+  const timer = setTimeout(
+    () => ctrl.abort(new DOMException('request timeout', 'TimeoutError')),
+    init?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+  )
+  let res: Response
+  try {
+    res = await fetch(path, { ...init, headers, body, signal: ctrl.signal })
+  } catch (e) {
+    clearTimeout(timer)
+    if ((e as Error)?.name === 'TimeoutError' || (e as Error)?.name === 'AbortError') {
+      const err = new Error('请求超时,请重试或检查后端是否存活') as ApiError
+      err.code = 504
+      err.reason = 'REQUEST_TIMEOUT'
+      throw err
+    }
+    throw e
+  }
+  clearTimeout(timer)
   const text = await res.text()
   const parsed = text ? (safeParse(text) as Envelope | undefined) : undefined
 

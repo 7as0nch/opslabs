@@ -116,15 +116,26 @@ func (uc *AttemptUsecase) Start(ctx context.Context, slug string) (*Attempt, err
 	a.ContainerID = res.ContainerID
 	a.HostPort = res.HostPort
 
-	if err := uc.repo.Create(ctx, a); err != nil {
-		// 持久化失败:停掉容器避免泄露
+	// DB 写入给一个短超时 —— 远程 PG 抖动时不让整个请求挂死,让前端能尽快收到错误
+	// 超时后走 rollback 分支停容器,避免僵尸容器
+	createCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := uc.repo.Create(createCtx, a); err != nil {
+		// 持久化失败:停掉容器避免泄露(用背景 ctx,保证不被父 ctx 超时牵连)
 		if stopErr := uc.runner.Stop(context.Background(), res.ContainerID); stopErr != nil {
 			uc.log.Error("rollback stop failed",
 				zap.Error(stopErr),
 				zap.String("container_id", res.ContainerID))
 		}
-		uc.log.Error("repo create failed", zap.Error(err), zap.Int64("id", a.ID))
-		return nil, kerrors.InternalServer("UNKNOWN", "persist attempt failed")
+		uc.log.Error("repo create failed",
+			zap.Error(err),
+			zap.Int64("id", a.ID),
+			zap.String("container_id", res.ContainerID))
+		// 区分超时和其它错误,前端/运维能一眼定位
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, kerrors.New(504, "DB_WRITE_TIMEOUT", "persist attempt timed out (5s) — check db health")
+		}
+		return nil, kerrors.InternalServer("PERSIST_FAIL", "persist attempt failed: "+err.Error())
 	}
 
 	uc.store.Put(a)
