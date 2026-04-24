@@ -61,15 +61,5 @@ func (r *attemptRepo) FindByID(ctx context.Context, id int64) (*attempt.Attempt,
 	return &a, nil
 }
 
-// ListRunning 返回当前所有 running 状态的 Attempt,用于进程重启时回放内存缓存
-func (r *attemptRepo) ListRunning(ctx context.Context) ([]*attempt.Attempt, error) {
-	var list []*attempt.Attempt
-	err := r.db.GetDB().WithContext(ctx).
-		Where("status = ?", attempt.StatusRunning).
-		Find(&list).Error
-	if err != nil {
-		r.log.Error("list running attempts failed", zap.Error(err))
-		return nil, err
-	}
-	return list, nil
-}
+// 注:原 ListRunning(进程重启回灌内存缓存用)已于 Round 6 移除。
+// AttemptStore 迁 Redis 后,跨进程共享状态,不再需要回灌机制。

@@ -17,6 +17,11 @@ type ServiceOptions struct {
 	TerminalURLTemplate string
 	// DefaultIdleTimeout 无场景覆盖时的默认空闲超时
 	DefaultIdleTimeout time.Duration
+	// DefaultPassedGrace 无场景覆盖时,passed 状态到硬清理之间的宽限(复盘时间)
+	DefaultPassedGrace time.Duration
+	// MaxExtendSeconds 单次 Extend 请求的上限 —— 防止误操作把 TTL 打到天
+	// 传 0 时走内部默认 30min
+	MaxExtendSeconds time.Duration
 }
 
 // DefaultServiceOptions Week 1 开发默认值
@@ -25,5 +30,7 @@ func DefaultServiceOptions() *ServiceOptions {
 		TerminalHost:        "localhost",
 		TerminalURLTemplate: "http://{host}:{port}/",
 		DefaultIdleTimeout:  30 * time.Minute,
+		DefaultPassedGrace:  10 * time.Minute,
+		MaxExtendSeconds:    30 * time.Minute,
 	}
 }

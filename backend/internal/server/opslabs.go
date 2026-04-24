@@ -4,18 +4,16 @@
  * @Description: Opslabs 相关服务的 server 层装配:
  *                 - 场景注册表 / 内存缓存 / 运行时实例工厂
  *                 - AttemptService 的小配置(从 conf.yaml 解析)
- *                 - AttemptReaper:定时扫内存缓存,清理空闲超时的 attempt
  *               放在 server/ 和 http.go、grpc.go 同层,由 main 注册运行
+ *
+ *               GC / Reaper 周期任务已独立到 gcserver.go(README Day 6 规划的
+ *               task.GCServer 位置),这里不再重复定义,避免一个文件扛五项职责
 **/
 package server
 
 import (
-	"context"
-	"errors"
-	"time"
-
-	"github.com/7as0nch/backend/internal/biz/attempt"
 	"github.com/7as0nch/backend/internal/conf"
+	"github.com/7as0nch/backend/internal/db"
 	"github.com/7as0nch/backend/internal/runtime"
 	"github.com/7as0nch/backend/internal/scenario"
 	"github.com/7as0nch/backend/internal/service/opslabs"
@@ -34,12 +32,15 @@ func NewScenarioRegistry() scenario.Registry {
 }
 
 // ==============================================================
-// Attempt 内存缓存
+// Attempt 共享缓存(Round 6 起走 Redis)
 // ==============================================================
 
-// NewAttemptStore 构造全局唯一的 Attempt 内存缓存
-func NewAttemptStore() *store.AttemptStore {
-	return store.NewAttemptStore()
+// NewAttemptStore 构造全局唯一的 Attempt 共享缓存
+//
+// Round 6 起 Redis 是强依赖:nil 会在 store.NewAttemptStore 里 log.Fatal。
+// 部署前请确认 configs/config.yaml 的 data.redis.addr 已配置,否则启动失败。
+func NewAttemptStore(rdb db.RedisRepo, logger *zap.Logger) *store.AttemptStore {
+	return store.NewAttemptStore(rdb, logger)
 }
 
 // ==============================================================
@@ -123,150 +124,5 @@ func NewOpslabsServiceOptions(c *conf.Bootstrap) *opslabs.ServiceOptions {
 	return opts
 }
 
-// ==============================================================
-// AttemptReaper:定时扫内存缓存,到期则 Terminate
-// 实现 kratos.Transport 的最小接口(Start/Stop),在 main 里 kratos.Server(..., reaper) 注册
-// ==============================================================
-
-// DefaultPassedGrace 通关后给用户复盘的宽限时间,到期容器被 reaper 清理
-const DefaultPassedGrace = 10 * time.Minute
-
-// AttemptReaper 空闲/通关 attempt 清理器
-//
-// 行为:
-//   - 每隔 ReaperInterval(默认 1min) 扫一次 AttemptStore.Snapshot
-//   - 命中 now - LastActiveAt > DefaultIdleTimeout 的 running attempt:调 Terminate (status=terminated)
-//   - 命中 now - FinishedAt > PassedGrace 的 passed attempt:调 Terminate (仅停容器,状态保持 passed)
-//
-// 与生产 docker 运行时配合时要注意:
-//   - Terminate 内部会 runner.Stop,失败只记日志,内存缓存仍会被 Usecase 更新为 terminated
-//   - passed grace 清理会走 Usecase 的幂等 Terminate;但 passed 已经不 IsActive,
-//     需要 Usecase 暴露独立 CleanupPassed 或 reaper 直接 runner.Stop。当前实现为 reaper
-//     直接删 store + 日志,容器的停靠 docker 宿机自带的短命策略兜底
-type AttemptReaper struct {
-	store       *store.AttemptStore
-	uc          *attempt.AttemptUsecase
-	log         *zap.Logger
-	interval    time.Duration
-	idleCutoff  time.Duration
-	passedGrace time.Duration
-
-	cancel context.CancelFunc
-	doneCh chan struct{}
-}
-
-// NewAttemptReaper 构造(时间参数从 conf.Runtime 读)
-func NewAttemptReaper(
-	s *store.AttemptStore,
-	uc *attempt.AttemptUsecase,
-	c *conf.Bootstrap,
-	logger *zap.Logger,
-) *AttemptReaper {
-	interval := time.Minute
-	idle := 30 * time.Minute
-	grace := DefaultPassedGrace
-	if c != nil && c.Runtime != nil {
-		if c.Runtime.ReaperInterval != nil {
-			if d := c.Runtime.ReaperInterval.AsDuration(); d > 0 {
-				interval = d
-			}
-		}
-		if c.Runtime.DefaultIdleTimeout != nil {
-			if d := c.Runtime.DefaultIdleTimeout.AsDuration(); d > 0 {
-				idle = d
-			}
-		}
-		// passed_grace 字段在 proto regen 后会暴露 c.Runtime.PassedGrace,
-		// 当前先用内置默认,保持 yaml 不用新字段也能跑
-	}
-	return &AttemptReaper{
-		store:       s,
-		uc:          uc,
-		log:         logger,
-		interval:    interval,
-		idleCutoff:  idle,
-		passedGrace: grace,
-		doneCh:      make(chan struct{}),
-	}
-}
-
-// Start 实现 kratos.transport.Server.Start
-func (r *AttemptReaper) Start(parent context.Context) error {
-	ctx, cancel := context.WithCancel(parent)
-	r.cancel = cancel
-	r.log.Info("attempt reaper started",
-		zap.Duration("interval", r.interval),
-		zap.Duration("idle_cutoff", r.idleCutoff))
-
-	go func() {
-		defer close(r.doneCh)
-		ticker := time.NewTicker(r.interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				r.log.Info("attempt reaper exiting")
-				return
-			case now := <-ticker.C:
-				r.reapOnce(ctx, now)
-			}
-		}
-	}()
-	return nil
-}
-
-// Stop 实现 kratos.transport.Server.Stop
-func (r *AttemptReaper) Stop(ctx context.Context) error {
-	if r.cancel != nil {
-		r.cancel()
-	}
-	select {
-	case <-r.doneCh:
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-	return nil
-}
-
-// reapOnce 单次扫描,处理两类到期 attempt
-//   - running 且 idle 超时
-//   - passed 且 grace 过期
-func (r *AttemptReaper) reapOnce(ctx context.Context, now time.Time) {
-	list := r.store.Snapshot()
-	for _, a := range list {
-		switch a.Status {
-		case "running":
-			idle := now.Sub(a.LastActiveAt)
-			if idle < r.idleCutoff {
-				continue
-			}
-			r.log.Info("reaping idle attempt",
-				zap.Int64("id", a.ID),
-				zap.String("slug", a.ScenarioSlug),
-				zap.Duration("idle", idle))
-			if err := r.uc.Terminate(ctx, a.ID); err != nil && !errors.Is(err, context.Canceled) {
-				r.log.Error("reap terminate failed",
-					zap.Int64("id", a.ID),
-					zap.Error(err))
-			}
-		case "passed":
-			if a.FinishedAt == nil {
-				// 异常:状态 passed 但没 FinishedAt,用 LastActiveAt 兜底
-				if now.Sub(a.LastActiveAt) < r.passedGrace {
-					continue
-				}
-			} else if now.Sub(*a.FinishedAt) < r.passedGrace {
-				continue
-			}
-			r.log.Info("reaping passed-grace attempt",
-				zap.Int64("id", a.ID),
-				zap.String("slug", a.ScenarioSlug))
-			// passed 态不再走 Terminate(会改 status),直接触发容器停靠 + store 删除
-			if err := r.uc.CleanupPassed(ctx, a.ID); err != nil && !errors.Is(err, context.Canceled) {
-				r.log.Error("reap cleanup passed failed",
-					zap.Int64("id", a.ID),
-					zap.Error(err))
-			}
-		}
-	}
-}
+// GCServer / NewGCServer / DefaultPassedGrace 统一在 gcserver.go 定义。
+// Round 6 起 AttemptReaper 别名已废弃,所有装配走 NewGCServer。

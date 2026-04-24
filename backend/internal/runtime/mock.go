@@ -114,6 +114,29 @@ func (m *MockRunner) Stop(ctx context.Context, containerID string) error {
 	return nil
 }
 
+// Reconcile mock 实现 no-op,接口对齐 DockerRunner
+func (m *MockRunner) Reconcile(ctx context.Context) error {
+	return nil
+}
+
+// Ping mock 不跑真容器,只要 containerID 在 attempts 表里就认为活着
+//
+// 空 ID 或未记录的 ID 一律返回 ErrContainerNotFound —— 这样复用分支在
+// 单测里也能真实走一次 Ping 失败→删 store→新建 的回路。
+// 如需模拟"容器真死"场景,可在测试里先 Stop 再调复用,断言走进重建分支。
+func (m *MockRunner) Ping(ctx context.Context, containerID string) error {
+	if containerID == "" {
+		return ErrContainerNotFound
+	}
+	m.mu.Lock()
+	_, ok := m.attempts[containerID]
+	m.mu.Unlock()
+	if !ok {
+		return ErrContainerNotFound
+	}
+	return nil
+}
+
 // ============ 测试辅助 API ============
 
 // SetExecResult 精确指定某个 containerID 下一次 Exec 的返回

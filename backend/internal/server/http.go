@@ -10,7 +10,9 @@ import (
 	"github.com/7as0nch/backend/internal/conf"
 	"github.com/7as0nch/backend/internal/service/base"
 	"github.com/7as0nch/backend/internal/service/opslabs"
+	"github.com/7as0nch/backend/internal/store"
 	"github.com/7as0nch/backend/pkg/auth"
+	"go.uber.org/zap"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/logging"
 	"github.com/go-kratos/kratos/v2/middleware/metrics"
@@ -34,6 +36,8 @@ func NewHTTPServer(c *conf.Server,
 	tracker *base.TrackerService,
 	scenarioServ *opslabs.ScenarioService,
 	attemptServ *opslabs.AttemptService,
+	attemptStore *store.AttemptStore,
+	zlog *zap.Logger,
 	logg log.Logger) *kratoshttp.Server {
 	tp := tracesdk.NewTracerProvider(
 		tracesdk.WithSampler(tracesdk.ParentBased(tracesdk.TraceIDRatioBased(1.0))),
@@ -59,6 +63,8 @@ func NewHTTPServer(c *conf.Server,
 			logging.Server(logg),
 			tracing.Server(),
 			auth.MiddlewareCors(),
+			// X-Client-ID → ctx,V1 匿名 owner 标识(解决 clientA 抢 clientB attempt 的问题)
+			opslabs.MiddlewareClientID(),
 			selector.Server(authRepo.Server()).Match(auth.NewWhiteListMatcher(map[string]bool{
 				basepb.OperationAuthLogin:                       true,
 				basepb.OperationTrackerBatch:                    true,
@@ -104,6 +110,22 @@ func NewHTTPServer(c *conf.Server,
 	// opslabs API
 	opslabspb.RegisterScenarioHTTPServer(srv, scenarioServ)
 	opslabspb.RegisterAttemptHTTPServer(srv, attemptServ)
+
+	// 心跳端点:不走 proto,避免为一个纯副作用 API 跑 proto regen
+	// 放在 proto 注册之后 —— 让 gorilla/mux 的 RPC 精确路由先匹配,
+	// 再由这个兜底 path 接管剩余的 /v1/attempts/{id}/heartbeat
+	srv.HandleFunc("/v1/attempts/{id}/heartbeat", attemptServ.HeartbeatAttemptHandler)
+
+	// 非 sandbox 执行模式的静态资源下发 handler
+	// 必须注册在 RegisterScenarioHTTPServer 之后,让 gorilla/mux 的 RPC 精确路由先匹配
+	// (/v1/scenarios 和 /v1/scenarios/{slug} 会先被 RPC 路由命中;
+	//  /v1/scenarios/{slug}/bundle/... 没有 RPC 路由,落到这里)
+	srv.HandlePrefix("/v1/scenarios/", opslabs.NewBundleHandler())
+
+	// ttyd 反向代理:把 "http://localhost:{port}/" 换成同源 "/v1/ttyd/{attemptId}/"
+	// 避开 COEP=credentialless 对跨源 iframe 的隐式拦截。
+	// handler 会把 HTTP + WebSocket 都转发给 127.0.0.1:{host_port}。
+	srv.HandlePrefix(opslabs.TtydProxyURLPrefix, opslabs.NewTtydProxyHandler(attemptStore, zlog))
 
 	srv.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

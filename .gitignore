@@ -78,6 +78,16 @@ vendor/
 *.a
 *.so
 
+# v86 资源目录例外:
+# 上面的 vendor/ 会把 bundles/wasm-linux-hello/vendor 也吃掉,
+# 但这个目录不是 Go vendor,而是 v86 二进制资源的 embed 目标。
+# 允许目录本身及其 .gitkeep / README.md 进 git,二进制文件仍忽略。
+# fetch 脚本按 copy.sh 结构落到 build/ bios/ images/ 子目录,** 递归忽略。
+!backend/internal/scenario/bundles/wasm-linux-hello/vendor/
+backend/internal/scenario/bundles/wasm-linux-hello/vendor/**
+!backend/internal/scenario/bundles/wasm-linux-hello/vendor/.gitkeep
+!backend/internal/scenario/bundles/wasm-linux-hello/vendor/README.md
+
 # 操作系统文件
 Thumbs.db
 .DS_Store

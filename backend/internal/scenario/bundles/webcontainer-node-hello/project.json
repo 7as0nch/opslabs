@@ -1,0 +1,51 @@
+{
+  "__comment": [
+    "opslabs web-container 场景 bundle:",
+    "  - files          : WebContainer FileSystemTree 格式(https://webcontainers.io/api#filesystemtree)",
+    "  - check          : 判题要跑的命令 + 参数,退出码 0 为通过",
+    "  - startCmd       : 挂载完成后 Runner 自动跑一次,用于 npm install 之类的准备",
+    "  - entrypoint     : 用户首次打开 Runner 默认展开哪个文件",
+    "  - editableFiles  : 白名单,只有列进去的文件可编辑,其它前端 Monaco 强制 readOnly",
+    "  - hiddenFiles    : 黑名单,这些文件在文件树里不展示(WebContainer 内仍然存在,check 照跑)",
+    "",
+    "本场景目标:修 handler.js 里的 bug,让 greet(name) 返回 {greeting:'hello <name>'}。",
+    "初始 handler.js 故意拼错字段名 'greet',跑测试会红,自己改过来。",
+    "",
+    "为什么 check.mjs 要上 hiddenFiles:",
+    "  用户如果能看到/改 check 脚本,等于看到答案,或者直接把 check 换成 process.exit(0),判题就废了。",
+    "  hiddenFiles 让前端根本不展示,前端改不到;WebContainer 里 mount 时写入,node check.mjs 照常跑。"
+  ],
+  "entrypoint": "handler.js",
+  "editableFiles": ["handler.js"],
+  "hiddenFiles": ["check.mjs"],
+  "startCmd": {
+    "cmd": "npm",
+    "args": ["install", "--no-audit", "--no-fund", "--loglevel=error"]
+  },
+  "check": {
+    "cmd": "node",
+    "args": ["check.mjs"]
+  },
+  "files": {
+    "package.json": {
+      "file": {
+        "contents": "{\n  \"name\": \"opslabs-webcontainer-node-hello\",\n  \"version\": \"1.0.0\",\n  \"type\": \"module\",\n  \"private\": true,\n  \"description\": \"opslabs web-container demo: fix the greeting handler\",\n  \"dependencies\": {}\n}\n"
+      }
+    },
+    "handler.js": {
+      "file": {
+        "contents": "// opslabs 场景:修复下面这个 handler\n//\n// 目标:接收一个 name 字符串,返回 { greeting: `hello ${name}` }\n// 跑 check 的时候,check.mjs 会 import 这个 default export,\n// 拼一个 name=world 进去比对结果。\n//\n// 现在故意有 bug,自己改过来。\n\nexport default function greet(name) {\n  // BUG: 字段名拼错了,check 期待的是 greeting,不是 greet\n  return { greet: 'hello ' + name }\n}\n"
+      }
+    },
+    "check.mjs": {
+      "file": {
+        "contents": "// opslabs web-container 判题脚本\n//\n// 约定:\n//   - 通过时退出码 0,并在 stdout 打印 'OK'(跟 sandbox 模式对齐)\n//   - 失败时退出码 1,把期望/实际值印到 stderr\n//   - 其它类型错误(import 失败等)退出码 2\n//\n// Runner 会读 process.exitCode 当成 ClientCheckResult.exitCode 上报后端。\n\nimport greet from './handler.js'\n\ntry {\n  const out = greet('world')\n  const expected = { greeting: 'hello world' }\n\n  if (!out || typeof out !== 'object') {\n    console.error('handler 没返回对象,拿到:', out)\n    process.exit(1)\n  }\n  if (out.greeting !== expected.greeting) {\n    console.error('字段不对 —— 期待 greeting=\"' + expected.greeting + '\",拿到:', JSON.stringify(out))\n    process.exit(1)\n  }\n  console.log('OK')\n  process.exit(0)\n} catch (e) {\n  console.error('handler 抛异常:', e && e.stack || e)\n  process.exit(2)\n}\n"
+      }
+    },
+    "README.md": {
+      "file": {
+        "contents": "# opslabs / webcontainer-node-hello\n\n这个场景跑在浏览器里的 Node.js (StackBlitz WebContainer),不走后端容器。\n\n- `handler.js`   你要修的文件,当前字段名拼错了\n- `package.json` 目前没依赖,放这里是为了让 WebContainer 能识别成 Node 项目\n\n判题:点右上角\"检查答案\",Runner 会在 WebContainer 里跑一段内部脚本,import 你的 `handler.js` 传入 `name='world'`,校验返回值是否为 `{ greeting: 'hello world' }`。\n通过时打印 `OK` 并 exit 0,失败会把期望/实际值打到日志区。\n"
+      }
+    }
+  }
+}

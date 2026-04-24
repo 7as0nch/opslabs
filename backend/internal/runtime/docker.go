@@ -78,11 +78,55 @@ func NewDockerRunner(portStart, portEnd int, log *zap.Logger, opts ...DockerOpti
 	return r
 }
 
+// 端口冲突时最多重试几次。每次拿到的"坏端口"会被 MarkBad 永久隔离,
+// 因此重试次数不需要太大;即使整个池都坏(极端情况)也会在这个上限内失败。
+const dockerRunPortRetryLimit = 8
+
 // Run docker run -d 起容器
+//
+// **端口冲突重试**:
+// 在多个 backend 进程共用一台主机 / 上次崩溃残留 docker 容器还占着端口的场景,
+// PortPool.Acquire 拿到的端口可能在 OS 层已被占用,docker 会回:
+//   Bind for 0.0.0.0:19999 failed: port is already allocated
+// 这种情况下我们把该端口 MarkBad(从池里隔离掉),换下一个端口重试,最多
+// dockerRunPortRetryLimit 次。每次都失败就把最后一次错误抛上去,让用户能看到
+// 具体冲突端口便于排查(比如手动 docker ps 看哪个旧容器占着)。
 func (r *DockerRunner) Run(ctx context.Context, spec RunSpec) (*RunResult, error) {
+	if spec.Image == "" {
+		return nil, errors.New("docker: empty image")
+	}
+
+	var lastErr error
+	for attempt := 0; attempt < dockerRunPortRetryLimit; attempt++ {
+		res, err, conflict := r.tryRunOnce(ctx, spec)
+		if err == nil {
+			return res, nil
+		}
+		lastErr = err
+		if !conflict {
+			// 非端口冲突错误:直接失败,不重试
+			return nil, err
+		}
+		r.log.Warn("docker port conflict, retrying with another port",
+			zap.Int("attempt", attempt+1),
+			zap.Error(err))
+	}
+	return nil, fmt.Errorf("docker run: exhausted %d port retries, last err: %w",
+		dockerRunPortRetryLimit, lastErr)
+}
+
+// tryRunOnce 起一次容器,返回 (结果, 错误, 是否端口冲突)
+//
+// conflict=true 时:
+//   - 端口已被 MarkBad,不会回流到 free 池
+//   - 调用方应换一个端口重试
+// conflict=false 时:
+//   - 端口已 Release 回 free
+//   - 错误是终态(配置错 / image 不存在等),不要重试
+func (r *DockerRunner) tryRunOnce(ctx context.Context, spec RunSpec) (*RunResult, error, bool) {
 	port, err := r.pool.Acquire()
 	if err != nil {
-		return nil, err
+		return nil, err, false
 	}
 
 	name := "opslabs-" + dockerRandHex(6)
@@ -143,21 +187,27 @@ func (r *DockerRunner) Run(ctx context.Context, spec RunSpec) (*RunResult, error
 	for k, v := range spec.Env {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
 	}
-	if spec.Image == "" {
-		r.pool.Release(port)
-		return nil, errors.New("docker: empty image")
-	}
 	args = append(args, spec.Image)
 
 	out, err := r.run(ctx, args...)
 	if err != nil {
+		// 端口冲突识别 —— docker 不同版本/语言文案略有差异,统一按子串匹配
+		if isPortConflictErr(out) || isPortConflictErr(err.Error()) {
+			r.pool.MarkBad(port)
+			// 容器名有 --name,如果 docker 在 publish 之前已经创建了同名容器壳子,
+			// 顺手清掉避免下次 --name 冲突。绝大多数情况下 publish 失败容器根本
+			// 不会被创建,这里 best-effort 静默处理。
+			_, _ = r.run(context.Background(), "rm", "-f", name)
+			return nil, fmt.Errorf("docker run: port %d already allocated (%s)",
+				port, strings.TrimSpace(out)), true
+		}
 		r.pool.Release(port)
-		return nil, fmt.Errorf("docker run: %w (%s)", err, strings.TrimSpace(out))
+		return nil, fmt.Errorf("docker run: %w (%s)", err, strings.TrimSpace(out)), false
 	}
 	cid := strings.TrimSpace(out)
 	if cid == "" {
 		r.pool.Release(port)
-		return nil, errors.New("docker run: empty container id")
+		return nil, errors.New("docker run: empty container id"), false
 	}
 	// 只取前 12 位和 docker ps 一致,便于阅读
 	if len(cid) > 64 {
@@ -168,7 +218,69 @@ func (r *DockerRunner) Run(ctx context.Context, spec RunSpec) (*RunResult, error
 	r.containers[cid] = port
 	r.mu.Unlock()
 
-	return &RunResult{ContainerID: cid, HostPort: port}, nil
+	return &RunResult{ContainerID: cid, HostPort: port}, nil, false
+}
+
+// isPortConflictErr 把端口冲突文案归一化判断
+//
+// docker CE 中文 / 英文 / 不同 OS 报文略有差异,这里按几个高频子串识别:
+//   - "port is already allocated"             // Linux / Mac
+//   - "Bind for 0.0.0.0:xxxx failed"          // 部分 Win/Mac
+//   - "address already in use"                // Linux 端口本已被宿主进程占着
+//   - "已分配" / "端口已"                       // 中文环境(打安全 wrap)
+func isPortConflictErr(s string) bool {
+	low := strings.ToLower(s)
+	switch {
+	case strings.Contains(low, "port is already allocated"):
+		return true
+	case strings.Contains(low, "bind for 0.0.0.0") && strings.Contains(low, "failed"):
+		return true
+	case strings.Contains(low, "address already in use"):
+		return true
+	case strings.Contains(s, "端口") && strings.Contains(s, "已"):
+		return true
+	}
+	return false
+}
+
+// Reconcile 启动时一次性清理 opslabs.* 标签的残余容器
+//
+// 触发时机:进程启动早期(在开放 http/grpc 之前)。
+// 目的:上次进程崩溃 / Ctrl-C 而没有走正常 Stop 链路时,docker 里仍残留
+// "opslabs-xxxxxx" 容器,占着端口导致下一次 Run 必然冲突。
+//
+// 实现:
+//   docker ps -aq --filter label=opslabs.attempt_id  # 列所有
+//   docker rm -f $cid ...                            # 强制删
+//
+// 注:目前 V1 没有"跨进程恢复 attempt 上下文"的能力(restoreRunning 只
+// 回灌内存 store,无法把容器挂回 runner.containers map),所以这里直接
+// 全部 nuke 是最干净的做法。等以后做多副本 / 长 attempt 时再细化。
+//
+// 失败不阻塞启动 —— 顶多下次 Run 撞回端口冲突,有 retry 兜底。
+func (r *DockerRunner) Reconcile(ctx context.Context) error {
+	// list
+	listCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	out, err := r.run(listCtx, "ps", "-aq", "--filter", "label=opslabs.attempt_id")
+	if err != nil {
+		// docker daemon 不在?让上层只记日志,不阻塞
+		return fmt.Errorf("docker ps: %w", err)
+	}
+	cids := strings.Fields(strings.TrimSpace(out))
+	if len(cids) == 0 {
+		r.log.Info("docker reconcile: no leftover opslabs containers")
+		return nil
+	}
+	r.log.Warn("docker reconcile: removing leftover opslabs containers",
+		zap.Int("count", len(cids)))
+	rmCtx, cancel2 := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel2()
+	args := append([]string{"rm", "-f"}, cids...)
+	if _, err := r.run(rmCtx, args...); err != nil {
+		return fmt.Errorf("docker rm leftovers: %w", err)
+	}
+	return nil
 }
 
 // Exec docker exec -u root -i <cid> bash -c <script>
@@ -212,6 +324,42 @@ func (r *DockerRunner) Exec(ctx context.Context, containerID, script string, tim
 		Stderr:   stderr.String(),
 		ExitCode: exit,
 	}, nil
+}
+
+// Ping 通过 docker inspect 校验容器是否仍在运行
+//
+// 实现细节:
+//   - 直接用 `docker inspect -f '{{.State.Running}}' <cid>`,既快又无副作用
+//   - stdout 为 "true\n" 视为活,"false\n" 视为已 exit/paused/created
+//   - docker 返回 "No such object" / "No such container" 一律归一到 ErrContainerNotFound
+//   - daemon 本身挂掉 → 返回原始 err,调用方自行决定兜底(不吞)
+//
+// 超时给 3s —— inspect 走本地 docker socket,正常耗时 < 50ms,3s 足以覆盖最糟情况;
+// 上层复用判定若等太久不如走新建路径,不值得卡 start 流程
+func (r *DockerRunner) Ping(ctx context.Context, containerID string) error {
+	if containerID == "" {
+		return ErrContainerNotFound
+	}
+	pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	out, err := r.run(pingCtx, "inspect", "-f", "{{.State.Running}}", containerID)
+	if err != nil {
+		low := strings.ToLower(err.Error())
+		if strings.Contains(low, "no such object") ||
+			strings.Contains(low, "no such container") ||
+			strings.Contains(low, "error: no such") {
+			return ErrContainerNotFound
+		}
+		// daemon 不可达 / inspect 语法错 / ctx 超时 —— 统一让上层拿到原始错
+		return fmt.Errorf("docker inspect: %w", err)
+	}
+	running := strings.TrimSpace(out)
+	if running == "true" {
+		return nil
+	}
+	// "false" / "" / 其它 —— 容器存在但不是 running,照样视为不可复用
+	return fmt.Errorf("docker inspect: container %s not running (state=%q)",
+		containerID, running)
 }
 
 // Stop docker rm -f

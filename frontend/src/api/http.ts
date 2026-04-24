@@ -4,6 +4,8 @@
 //   失败:{ code: 4xx/5xx, reason: "XXX", message: "..." }  (Kratos errors 默认格式)
 // 本函数统一:成功返回 data 字段,失败抛 ApiError
 
+import { getClientId } from '../lib/clientId'
+
 export interface ApiError extends Error {
   code: number
   reason: string
@@ -30,6 +32,13 @@ export async function request<T>(
 ): Promise<T> {
   const headers = new Headers(init?.headers)
   headers.set('accept', 'application/json')
+
+  // X-Client-ID: 未登录阶段的匿名 owner 标识
+  // 后端 middleware 会把这个值塞进 ctx,作为 AttemptStore 的 owner key
+  // 只在调用方没显式覆盖时自动补,便于单测传自定义值
+  if (!headers.has('X-Client-ID')) {
+    headers.set('X-Client-ID', getClientId())
+  }
 
   let body = init?.body
   if (init?.json !== undefined) {

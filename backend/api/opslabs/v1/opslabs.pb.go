@@ -96,8 +96,10 @@ type ScenarioBrief struct {
 	TechStack        []string               `protobuf:"bytes,8,rep,name=tech_stack,json=techStack,proto3" json:"tech_stack,omitempty"`
 	Tags             []string               `protobuf:"bytes,9,rep,name=tags,proto3" json:"tags,omitempty"`
 	IsPremium        bool                   `protobuf:"varint,10,opt,name=is_premium,json=isPremium,proto3" json:"is_premium,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// 执行模式:sandbox / static / wasm-linux / web-container(默认 sandbox)
+	ExecutionMode string `protobuf:"bytes,11,opt,name=execution_mode,json=executionMode,proto3" json:"execution_mode,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ScenarioBrief) Reset() {
@@ -200,6 +202,13 @@ func (x *ScenarioBrief) GetIsPremium() bool {
 	return false
 }
 
+func (x *ScenarioBrief) GetExecutionMode() string {
+	if x != nil {
+		return x.ExecutionMode
+	}
+	return ""
+}
+
 // ScenarioDetail 场景详情(完整字段)
 type ScenarioDetail struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
@@ -219,8 +228,13 @@ type ScenarioDetail struct {
 	Tags             []string               `protobuf:"bytes,14,rep,name=tags,proto3" json:"tags,omitempty"`
 	Hints            []*Hint                `protobuf:"bytes,15,rep,name=hints,proto3" json:"hints,omitempty"`
 	IsPremium        bool                   `protobuf:"varint,16,opt,name=is_premium,json=isPremium,proto3" json:"is_premium,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// 执行模式:sandbox / static / wasm-linux / web-container(默认 sandbox)
+	ExecutionMode string `protobuf:"bytes,17,opt,name=execution_mode,json=executionMode,proto3" json:"execution_mode,omitempty"`
+	// bundle 资源入口:static/wasm-linux/web-container 模式下前端 Runner 的入口 URL。
+	// sandbox 模式下为空。V1 由后端 embed.FS 下发,值形如 "/v1/scenarios/{slug}/bundle/index.html"
+	BundleUrl     string `protobuf:"bytes,18,opt,name=bundle_url,json=bundleUrl,proto3" json:"bundle_url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ScenarioDetail) Reset() {
@@ -363,6 +377,20 @@ func (x *ScenarioDetail) GetIsPremium() bool {
 		return x.IsPremium
 	}
 	return false
+}
+
+func (x *ScenarioDetail) GetExecutionMode() string {
+	if x != nil {
+		return x.ExecutionMode
+	}
+	return ""
+}
+
+func (x *ScenarioDetail) GetBundleUrl() string {
+	if x != nil {
+		return x.BundleUrl
+	}
+	return ""
 }
 
 // ListScenariosRequest 场景列表查询(过滤字段 Week 2 再生效)
@@ -631,7 +659,11 @@ type StartScenarioReply struct {
 	AttemptId   string                 `protobuf:"bytes,1,opt,name=attempt_id,json=attemptId,proto3" json:"attempt_id,omitempty"`
 	TerminalUrl string                 `protobuf:"bytes,2,opt,name=terminal_url,json=terminalUrl,proto3" json:"terminal_url,omitempty"`
 	// 空闲超时时间(RFC3339)
-	ExpiresAt     string `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	ExpiresAt string `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	// 执行模式(冗余下发,前端不必再查场景详情就能选 Runner)
+	ExecutionMode string `protobuf:"bytes,4,opt,name=execution_mode,json=executionMode,proto3" json:"execution_mode,omitempty"`
+	// bundle 资源入口(非 sandbox 模式必填)
+	BundleUrl     string `protobuf:"bytes,5,opt,name=bundle_url,json=bundleUrl,proto3" json:"bundle_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -683,6 +715,20 @@ func (x *StartScenarioReply) GetTerminalUrl() string {
 func (x *StartScenarioReply) GetExpiresAt() string {
 	if x != nil {
 		return x.ExpiresAt
+	}
+	return ""
+}
+
+func (x *StartScenarioReply) GetExecutionMode() string {
+	if x != nil {
+		return x.ExecutionMode
+	}
+	return ""
+}
+
+func (x *StartScenarioReply) GetBundleUrl() string {
+	if x != nil {
+		return x.BundleUrl
 	}
 	return ""
 }
@@ -739,6 +785,8 @@ type AttemptReply struct {
 	TerminalUrl   string                 `protobuf:"bytes,4,opt,name=terminal_url,json=terminalUrl,proto3" json:"terminal_url,omitempty"`
 	StartedAt     string                 `protobuf:"bytes,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
 	LastActiveAt  string                 `protobuf:"bytes,6,opt,name=last_active_at,json=lastActiveAt,proto3" json:"last_active_at,omitempty"`
+	ExecutionMode string                 `protobuf:"bytes,7,opt,name=execution_mode,json=executionMode,proto3" json:"execution_mode,omitempty"`
+	BundleUrl     string                 `protobuf:"bytes,8,opt,name=bundle_url,json=bundleUrl,proto3" json:"bundle_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -815,16 +863,102 @@ func (x *AttemptReply) GetLastActiveAt() string {
 	return ""
 }
 
-type CheckAttemptRequest struct {
+func (x *AttemptReply) GetExecutionMode() string {
+	if x != nil {
+		return x.ExecutionMode
+	}
+	return ""
+}
+
+func (x *AttemptReply) GetBundleUrl() string {
+	if x != nil {
+		return x.BundleUrl
+	}
+	return ""
+}
+
+// ClientCheckResult 前端/wasm runner 自带的判题结果
+// 非 sandbox 模式下由前端跑完后上报;sandbox 模式忽略此字段(后端 docker exec 跑 check.sh)
+type ClientCheckResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Passed        bool                   `protobuf:"varint,1,opt,name=passed,proto3" json:"passed,omitempty"`
+	ExitCode      int32                  `protobuf:"varint,2,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
+	Stdout        string                 `protobuf:"bytes,3,opt,name=stdout,proto3" json:"stdout,omitempty"`
+	Stderr        string                 `protobuf:"bytes,4,opt,name=stderr,proto3" json:"stderr,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClientCheckResult) Reset() {
+	*x = ClientCheckResult{}
+	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClientCheckResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClientCheckResult) ProtoMessage() {}
+
+func (x *ClientCheckResult) ProtoReflect() protoreflect.Message {
+	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClientCheckResult.ProtoReflect.Descriptor instead.
+func (*ClientCheckResult) Descriptor() ([]byte, []int) {
+	return file_api_opslabs_v1_opslabs_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ClientCheckResult) GetPassed() bool {
+	if x != nil {
+		return x.Passed
+	}
+	return false
+}
+
+func (x *ClientCheckResult) GetExitCode() int32 {
+	if x != nil {
+		return x.ExitCode
+	}
+	return 0
+}
+
+func (x *ClientCheckResult) GetStdout() string {
+	if x != nil {
+		return x.Stdout
+	}
+	return ""
+}
+
+func (x *ClientCheckResult) GetStderr() string {
+	if x != nil {
+		return x.Stderr
+	}
+	return ""
+}
+
+type CheckAttemptRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// 仅非 sandbox 模式使用:前端 Runner 自己跑完判题后把结果带上来
+	ClientResult  *ClientCheckResult `protobuf:"bytes,2,opt,name=client_result,json=clientResult,proto3" json:"client_result,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CheckAttemptRequest) Reset() {
 	*x = CheckAttemptRequest{}
-	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[11]
+	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -836,7 +970,7 @@ func (x *CheckAttemptRequest) String() string {
 func (*CheckAttemptRequest) ProtoMessage() {}
 
 func (x *CheckAttemptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[11]
+	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -849,7 +983,7 @@ func (x *CheckAttemptRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckAttemptRequest.ProtoReflect.Descriptor instead.
 func (*CheckAttemptRequest) Descriptor() ([]byte, []int) {
-	return file_api_opslabs_v1_opslabs_proto_rawDescGZIP(), []int{11}
+	return file_api_opslabs_v1_opslabs_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *CheckAttemptRequest) GetId() string {
@@ -857,6 +991,13 @@ func (x *CheckAttemptRequest) GetId() string {
 		return x.Id
 	}
 	return ""
+}
+
+func (x *CheckAttemptRequest) GetClientResult() *ClientCheckResult {
+	if x != nil {
+		return x.ClientResult
+	}
+	return nil
 }
 
 type CheckAttemptReply struct {
@@ -872,7 +1013,7 @@ type CheckAttemptReply struct {
 
 func (x *CheckAttemptReply) Reset() {
 	*x = CheckAttemptReply{}
-	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[12]
+	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -884,7 +1025,7 @@ func (x *CheckAttemptReply) String() string {
 func (*CheckAttemptReply) ProtoMessage() {}
 
 func (x *CheckAttemptReply) ProtoReflect() protoreflect.Message {
-	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[12]
+	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -897,7 +1038,7 @@ func (x *CheckAttemptReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckAttemptReply.ProtoReflect.Descriptor instead.
 func (*CheckAttemptReply) Descriptor() ([]byte, []int) {
-	return file_api_opslabs_v1_opslabs_proto_rawDescGZIP(), []int{12}
+	return file_api_opslabs_v1_opslabs_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *CheckAttemptReply) GetPassed() bool {
@@ -937,7 +1078,7 @@ type TerminateAttemptRequest struct {
 
 func (x *TerminateAttemptRequest) Reset() {
 	*x = TerminateAttemptRequest{}
-	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[13]
+	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -949,7 +1090,7 @@ func (x *TerminateAttemptRequest) String() string {
 func (*TerminateAttemptRequest) ProtoMessage() {}
 
 func (x *TerminateAttemptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[13]
+	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -962,7 +1103,7 @@ func (x *TerminateAttemptRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminateAttemptRequest.ProtoReflect.Descriptor instead.
 func (*TerminateAttemptRequest) Descriptor() ([]byte, []int) {
-	return file_api_opslabs_v1_opslabs_proto_rawDescGZIP(), []int{13}
+	return file_api_opslabs_v1_opslabs_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *TerminateAttemptRequest) GetId() string {
@@ -981,7 +1122,7 @@ type TerminateAttemptReply struct {
 
 func (x *TerminateAttemptReply) Reset() {
 	*x = TerminateAttemptReply{}
-	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[14]
+	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -993,7 +1134,7 @@ func (x *TerminateAttemptReply) String() string {
 func (*TerminateAttemptReply) ProtoMessage() {}
 
 func (x *TerminateAttemptReply) ProtoReflect() protoreflect.Message {
-	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[14]
+	mi := &file_api_opslabs_v1_opslabs_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1006,7 +1147,7 @@ func (x *TerminateAttemptReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminateAttemptReply.ProtoReflect.Descriptor instead.
 func (*TerminateAttemptReply) Descriptor() ([]byte, []int) {
-	return file_api_opslabs_v1_opslabs_proto_rawDescGZIP(), []int{14}
+	return file_api_opslabs_v1_opslabs_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *TerminateAttemptReply) GetStatus() string {
@@ -1025,7 +1166,7 @@ const file_api_opslabs_v1_opslabs_proto_rawDesc = "" +
 	"\x04Hint\x12\x14\n" +
 	"\x05level\x18\x01 \x01(\rR\x05level\x12\x1a\n" +
 	"\bunlocked\x18\x02 \x01(\bR\bunlocked\x12\x18\n" +
-	"\acontent\x18\x03 \x01(\tR\acontent\"\xb7\x02\n" +
+	"\acontent\x18\x03 \x01(\tR\acontent\"\xde\x02\n" +
 	"\rScenarioBrief\x12\x12\n" +
 	"\x04slug\x18\x01 \x01(\tR\x04slug\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
@@ -1041,7 +1182,8 @@ const file_api_opslabs_v1_opslabs_proto_rawDesc = "" +
 	"\x04tags\x18\t \x03(\tR\x04tags\x12\x1d\n" +
 	"\n" +
 	"is_premium\x18\n" +
-	" \x01(\bR\tisPremium\"\x80\x04\n" +
+	" \x01(\bR\tisPremium\x12%\n" +
+	"\x0eexecution_mode\x18\v \x01(\tR\rexecutionMode\"\xc6\x04\n" +
 	"\x0eScenarioDetail\x12\x12\n" +
 	"\x04slug\x18\x01 \x01(\tR\x04slug\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x14\n" +
@@ -1063,7 +1205,10 @@ const file_api_opslabs_v1_opslabs_proto_rawDesc = "" +
 	"\x04tags\x18\x0e \x03(\tR\x04tags\x12&\n" +
 	"\x05hints\x18\x0f \x03(\v2\x10.opslabs.v1.HintR\x05hints\x12\x1d\n" +
 	"\n" +
-	"is_premium\x18\x10 \x01(\bR\tisPremium\"\x92\x01\n" +
+	"is_premium\x18\x10 \x01(\bR\tisPremium\x12%\n" +
+	"\x0eexecution_mode\x18\x11 \x01(\tR\rexecutionMode\x12\x1d\n" +
+	"\n" +
+	"bundle_url\x18\x12 \x01(\tR\tbundleUrl\"\x92\x01\n" +
 	"\x14ListScenariosRequest\x12\x1a\n" +
 	"\bcategory\x18\x01 \x01(\tR\bcategory\x12\x1e\n" +
 	"\n" +
@@ -1080,15 +1225,18 @@ const file_api_opslabs_v1_opslabs_proto_rawDesc = "" +
 	"\rScenarioReply\x126\n" +
 	"\bscenario\x18\x01 \x01(\v2\x1a.opslabs.v1.ScenarioDetailR\bscenario\"*\n" +
 	"\x14StartScenarioRequest\x12\x12\n" +
-	"\x04slug\x18\x01 \x01(\tR\x04slug\"u\n" +
+	"\x04slug\x18\x01 \x01(\tR\x04slug\"\xbb\x01\n" +
 	"\x12StartScenarioReply\x12\x1d\n" +
 	"\n" +
 	"attempt_id\x18\x01 \x01(\tR\tattemptId\x12!\n" +
 	"\fterminal_url\x18\x02 \x01(\tR\vterminalUrl\x12\x1d\n" +
 	"\n" +
-	"expires_at\x18\x03 \x01(\tR\texpiresAt\"#\n" +
+	"expires_at\x18\x03 \x01(\tR\texpiresAt\x12%\n" +
+	"\x0eexecution_mode\x18\x04 \x01(\tR\rexecutionMode\x12\x1d\n" +
+	"\n" +
+	"bundle_url\x18\x05 \x01(\tR\tbundleUrl\"#\n" +
 	"\x11GetAttemptRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\xd2\x01\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x98\x02\n" +
 	"\fAttemptReply\x12\x1d\n" +
 	"\n" +
 	"attempt_id\x18\x01 \x01(\tR\tattemptId\x12#\n" +
@@ -1097,9 +1245,18 @@ const file_api_opslabs_v1_opslabs_proto_rawDesc = "" +
 	"\fterminal_url\x18\x04 \x01(\tR\vterminalUrl\x12\x1d\n" +
 	"\n" +
 	"started_at\x18\x05 \x01(\tR\tstartedAt\x12$\n" +
-	"\x0elast_active_at\x18\x06 \x01(\tR\flastActiveAt\"%\n" +
+	"\x0elast_active_at\x18\x06 \x01(\tR\flastActiveAt\x12%\n" +
+	"\x0eexecution_mode\x18\a \x01(\tR\rexecutionMode\x12\x1d\n" +
+	"\n" +
+	"bundle_url\x18\b \x01(\tR\tbundleUrl\"x\n" +
+	"\x11ClientCheckResult\x12\x16\n" +
+	"\x06passed\x18\x01 \x01(\bR\x06passed\x12\x1b\n" +
+	"\texit_code\x18\x02 \x01(\x05R\bexitCode\x12\x16\n" +
+	"\x06stdout\x18\x03 \x01(\tR\x06stdout\x12\x16\n" +
+	"\x06stderr\x18\x04 \x01(\tR\x06stderr\"i\n" +
 	"\x13CheckAttemptRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x91\x01\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12B\n" +
+	"\rclient_result\x18\x02 \x01(\v2\x1d.opslabs.v1.ClientCheckResultR\fclientResult\"\x91\x01\n" +
 	"\x11CheckAttemptReply\x12\x16\n" +
 	"\x06passed\x18\x01 \x01(\bR\x06passed\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12)\n" +
@@ -1133,7 +1290,7 @@ func file_api_opslabs_v1_opslabs_proto_rawDescGZIP() []byte {
 	return file_api_opslabs_v1_opslabs_proto_rawDescData
 }
 
-var file_api_opslabs_v1_opslabs_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_api_opslabs_v1_opslabs_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_api_opslabs_v1_opslabs_proto_goTypes = []any{
 	(*Hint)(nil),                    // 0: opslabs.v1.Hint
 	(*ScenarioBrief)(nil),           // 1: opslabs.v1.ScenarioBrief
@@ -1146,32 +1303,34 @@ var file_api_opslabs_v1_opslabs_proto_goTypes = []any{
 	(*StartScenarioReply)(nil),      // 8: opslabs.v1.StartScenarioReply
 	(*GetAttemptRequest)(nil),       // 9: opslabs.v1.GetAttemptRequest
 	(*AttemptReply)(nil),            // 10: opslabs.v1.AttemptReply
-	(*CheckAttemptRequest)(nil),     // 11: opslabs.v1.CheckAttemptRequest
-	(*CheckAttemptReply)(nil),       // 12: opslabs.v1.CheckAttemptReply
-	(*TerminateAttemptRequest)(nil), // 13: opslabs.v1.TerminateAttemptRequest
-	(*TerminateAttemptReply)(nil),   // 14: opslabs.v1.TerminateAttemptReply
+	(*ClientCheckResult)(nil),       // 11: opslabs.v1.ClientCheckResult
+	(*CheckAttemptRequest)(nil),     // 12: opslabs.v1.CheckAttemptRequest
+	(*CheckAttemptReply)(nil),       // 13: opslabs.v1.CheckAttemptReply
+	(*TerminateAttemptRequest)(nil), // 14: opslabs.v1.TerminateAttemptRequest
+	(*TerminateAttemptReply)(nil),   // 15: opslabs.v1.TerminateAttemptReply
 }
 var file_api_opslabs_v1_opslabs_proto_depIdxs = []int32{
 	0,  // 0: opslabs.v1.ScenarioDetail.hints:type_name -> opslabs.v1.Hint
 	1,  // 1: opslabs.v1.ListScenariosReply.scenarios:type_name -> opslabs.v1.ScenarioBrief
 	2,  // 2: opslabs.v1.ScenarioReply.scenario:type_name -> opslabs.v1.ScenarioDetail
-	3,  // 3: opslabs.v1.Scenario.ListScenarios:input_type -> opslabs.v1.ListScenariosRequest
-	5,  // 4: opslabs.v1.Scenario.GetScenario:input_type -> opslabs.v1.GetScenarioRequest
-	7,  // 5: opslabs.v1.Attempt.StartScenario:input_type -> opslabs.v1.StartScenarioRequest
-	9,  // 6: opslabs.v1.Attempt.GetAttempt:input_type -> opslabs.v1.GetAttemptRequest
-	11, // 7: opslabs.v1.Attempt.CheckAttempt:input_type -> opslabs.v1.CheckAttemptRequest
-	13, // 8: opslabs.v1.Attempt.TerminateAttempt:input_type -> opslabs.v1.TerminateAttemptRequest
-	4,  // 9: opslabs.v1.Scenario.ListScenarios:output_type -> opslabs.v1.ListScenariosReply
-	6,  // 10: opslabs.v1.Scenario.GetScenario:output_type -> opslabs.v1.ScenarioReply
-	8,  // 11: opslabs.v1.Attempt.StartScenario:output_type -> opslabs.v1.StartScenarioReply
-	10, // 12: opslabs.v1.Attempt.GetAttempt:output_type -> opslabs.v1.AttemptReply
-	12, // 13: opslabs.v1.Attempt.CheckAttempt:output_type -> opslabs.v1.CheckAttemptReply
-	14, // 14: opslabs.v1.Attempt.TerminateAttempt:output_type -> opslabs.v1.TerminateAttemptReply
-	9,  // [9:15] is the sub-list for method output_type
-	3,  // [3:9] is the sub-list for method input_type
-	3,  // [3:3] is the sub-list for extension type_name
-	3,  // [3:3] is the sub-list for extension extendee
-	0,  // [0:3] is the sub-list for field type_name
+	11, // 3: opslabs.v1.CheckAttemptRequest.client_result:type_name -> opslabs.v1.ClientCheckResult
+	3,  // 4: opslabs.v1.Scenario.ListScenarios:input_type -> opslabs.v1.ListScenariosRequest
+	5,  // 5: opslabs.v1.Scenario.GetScenario:input_type -> opslabs.v1.GetScenarioRequest
+	7,  // 6: opslabs.v1.Attempt.StartScenario:input_type -> opslabs.v1.StartScenarioRequest
+	9,  // 7: opslabs.v1.Attempt.GetAttempt:input_type -> opslabs.v1.GetAttemptRequest
+	12, // 8: opslabs.v1.Attempt.CheckAttempt:input_type -> opslabs.v1.CheckAttemptRequest
+	14, // 9: opslabs.v1.Attempt.TerminateAttempt:input_type -> opslabs.v1.TerminateAttemptRequest
+	4,  // 10: opslabs.v1.Scenario.ListScenarios:output_type -> opslabs.v1.ListScenariosReply
+	6,  // 11: opslabs.v1.Scenario.GetScenario:output_type -> opslabs.v1.ScenarioReply
+	8,  // 12: opslabs.v1.Attempt.StartScenario:output_type -> opslabs.v1.StartScenarioReply
+	10, // 13: opslabs.v1.Attempt.GetAttempt:output_type -> opslabs.v1.AttemptReply
+	13, // 14: opslabs.v1.Attempt.CheckAttempt:output_type -> opslabs.v1.CheckAttemptReply
+	15, // 15: opslabs.v1.Attempt.TerminateAttempt:output_type -> opslabs.v1.TerminateAttemptReply
+	10, // [10:16] is the sub-list for method output_type
+	4,  // [4:10] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_api_opslabs_v1_opslabs_proto_init() }
@@ -1185,7 +1344,7 @@ func file_api_opslabs_v1_opslabs_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_opslabs_v1_opslabs_proto_rawDesc), len(file_api_opslabs_v1_opslabs_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

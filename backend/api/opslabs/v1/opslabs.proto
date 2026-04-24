@@ -63,6 +63,9 @@ service Attempt {
     };
   }
 }
+// 备注:曾计划新增 ExtendAttempt RPC(通关后复盘续期)。
+// V1 方案改为前端做客户端倒计时到期再 Terminate,利用后端 PassedGrace 自然清理,
+// 避免 proto regen 拖慢链路。未来需要服务端强制续期时再加回 ExtendAttempt。
 
 // =====================================================================
 // 公共消息
@@ -87,6 +90,8 @@ message ScenarioBrief {
   repeated string tech_stack = 8;
   repeated string tags = 9;
   bool is_premium = 10;
+  // 执行模式:sandbox / static / wasm-linux / web-container(默认 sandbox)
+  string execution_mode = 11;
 }
 
 // ScenarioDetail 场景详情(完整字段)
@@ -107,6 +112,11 @@ message ScenarioDetail {
   repeated string tags = 14;
   repeated Hint hints = 15;
   bool is_premium = 16;
+  // 执行模式:sandbox / static / wasm-linux / web-container(默认 sandbox)
+  string execution_mode = 17;
+  // bundle 资源入口:static/wasm-linux/web-container 模式下前端 Runner 的入口 URL。
+  // sandbox 模式下为空。V1 由后端 embed.FS 下发,值形如 "/v1/scenarios/{slug}/bundle/index.html"
+  string bundle_url = 18;
 }
 
 // =====================================================================
@@ -148,6 +158,10 @@ message StartScenarioReply {
   string terminal_url = 2;
   // 空闲超时时间(RFC3339)
   string expires_at = 3;
+  // 执行模式(冗余下发,前端不必再查场景详情就能选 Runner)
+  string execution_mode = 4;
+  // bundle 资源入口(非 sandbox 模式必填)
+  string bundle_url = 5;
 }
 
 message GetAttemptRequest {
@@ -161,10 +175,26 @@ message AttemptReply {
   string terminal_url = 4;
   string started_at = 5;
   string last_active_at = 6;
+  string execution_mode = 7;
+  string bundle_url = 8;
+  // 备注:未加 expires_at / idle_timeout_seconds / passed_grace_seconds —
+  //       V1 前端用 StartScenarioReply.expires_at 作为基准,配合 last_active_at
+  //       的变化自行外推倒计时。保留字段号 9-11 给未来补齐使用,避免二次改动时冲突。
+}
+
+// ClientCheckResult 前端/wasm runner 自带的判题结果
+// 非 sandbox 模式下由前端跑完后上报;sandbox 模式忽略此字段(后端 docker exec 跑 check.sh)
+message ClientCheckResult {
+  bool passed = 1;
+  int32 exit_code = 2;
+  string stdout = 3;
+  string stderr = 4;
 }
 
 message CheckAttemptRequest {
   string id = 1;
+  // 仅非 sandbox 模式使用:前端 Runner 自己跑完判题后把结果带上来
+  ClientCheckResult client_result = 2;
 }
 
 message CheckAttemptReply {

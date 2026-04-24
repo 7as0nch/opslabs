@@ -5,6 +5,432 @@ openapi: 3.0.3
 info:
     title: ""
     version: 0.0.1
-paths: {}
+paths:
+    /v1/attempts/{id}:
+        get:
+            tags:
+                - Attempt
+            description: 查询 Attempt 状态(前端每 10s 轮询,顺便更新 last_active_at)
+            operationId: Attempt_GetAttempt
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/AttemptReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/attempts/{id}/check:
+        post:
+            tags:
+                - Attempt
+            description: 判题(同步执行容器内 check.sh)
+            operationId: Attempt_CheckAttempt
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckAttemptRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckAttemptReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/attempts/{id}/terminate:
+        post:
+            tags:
+                - Attempt
+            description: 手动结束场景
+            operationId: Attempt_TerminateAttempt
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/TerminateAttemptRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/TerminateAttemptReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/scenarios:
+        get:
+            tags:
+                - Scenario
+            description: 场景列表(支持 category / difficulty / persona 过滤,Week 1 查询参数先不生效)
+            operationId: Scenario_ListScenarios
+            parameters:
+                - name: category
+                  in: query
+                  schema:
+                    type: string
+                - name: difficulty
+                  in: query
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: persona
+                  in: query
+                  schema:
+                    type: string
+                - name: tech
+                  in: query
+                  schema:
+                    type: string
+                - name: tag
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListScenariosReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/scenarios/{slug}:
+        get:
+            tags:
+                - Scenario
+            description: 场景详情(含 Markdown 描述与提示外壳)
+            operationId: Scenario_GetScenario
+            parameters:
+                - name: slug
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ScenarioReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/scenarios/{slug}/start:
+        post:
+            tags:
+                - Attempt
+            description: 启动场景,分配容器与 ttyd 端口
+            operationId: Attempt_StartScenario
+            parameters:
+                - name: slug
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/StartScenarioRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/StartScenarioReply'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
 components:
-    schemas: {}
+    schemas:
+        AttemptReply:
+            type: object
+            properties:
+                attemptId:
+                    type: string
+                scenarioSlug:
+                    type: string
+                status:
+                    type: string
+                terminalUrl:
+                    type: string
+                startedAt:
+                    type: string
+                lastActiveAt:
+                    type: string
+                executionMode:
+                    type: string
+                bundleUrl:
+                    type: string
+        CheckAttemptReply:
+            type: object
+            properties:
+                passed:
+                    type: boolean
+                message:
+                    type: string
+                durationSeconds:
+                    type: integer
+                    description: 仅通关时返回
+                    format: uint32
+                checkCount:
+                    type: integer
+                    format: uint32
+        CheckAttemptRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                clientResult:
+                    allOf:
+                        - $ref: '#/components/schemas/ClientCheckResult'
+                    description: 仅非 sandbox 模式使用:前端 Runner 自己跑完判题后把结果带上来
+        ClientCheckResult:
+            type: object
+            properties:
+                passed:
+                    type: boolean
+                exitCode:
+                    type: integer
+                    format: int32
+                stdout:
+                    type: string
+                stderr:
+                    type: string
+            description: |-
+                ClientCheckResult 前端/wasm runner 自带的判题结果
+                 非 sandbox 模式下由前端跑完后上报;sandbox 模式忽略此字段(后端 docker exec 跑 check.sh)
+        GoogleProtobufAny:
+            type: object
+            properties:
+                '@type':
+                    type: string
+                    description: The type of the serialized message.
+            additionalProperties: true
+            description: Contains an arbitrary serialized message along with a @type that describes the type of the serialized message.
+        Hint:
+            type: object
+            properties:
+                level:
+                    type: integer
+                    format: uint32
+                unlocked:
+                    type: boolean
+                content:
+                    type: string
+            description: Hint 提示外壳(Week 1 content 始终返回空,V2 解锁后才带内容)
+        ListScenariosReply:
+            type: object
+            properties:
+                scenarios:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ScenarioBrief'
+                total:
+                    type: integer
+                    format: uint32
+        ScenarioBrief:
+            type: object
+            properties:
+                slug:
+                    type: string
+                title:
+                    type: string
+                summary:
+                    type: string
+                category:
+                    type: string
+                difficulty:
+                    type: integer
+                    format: uint32
+                estimatedMinutes:
+                    type: integer
+                    format: uint32
+                targetPersonas:
+                    type: array
+                    items:
+                        type: string
+                techStack:
+                    type: array
+                    items:
+                        type: string
+                tags:
+                    type: array
+                    items:
+                        type: string
+                isPremium:
+                    type: boolean
+                executionMode:
+                    type: string
+                    description: 执行模式:sandbox / static / wasm-linux / web-container(默认 sandbox)
+            description: ScenarioBrief 场景列表项(精简字段)
+        ScenarioDetail:
+            type: object
+            properties:
+                slug:
+                    type: string
+                version:
+                    type: string
+                title:
+                    type: string
+                summary:
+                    type: string
+                descriptionMd:
+                    type: string
+                category:
+                    type: string
+                difficulty:
+                    type: integer
+                    format: uint32
+                estimatedMinutes:
+                    type: integer
+                    format: uint32
+                targetPersonas:
+                    type: array
+                    items:
+                        type: string
+                experienceLevel:
+                    type: string
+                techStack:
+                    type: array
+                    items:
+                        type: string
+                skills:
+                    type: array
+                    items:
+                        type: string
+                commands:
+                    type: array
+                    items:
+                        type: string
+                tags:
+                    type: array
+                    items:
+                        type: string
+                hints:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Hint'
+                isPremium:
+                    type: boolean
+                executionMode:
+                    type: string
+                    description: 执行模式:sandbox / static / wasm-linux / web-container(默认 sandbox)
+                bundleUrl:
+                    type: string
+                    description: |-
+                        bundle 资源入口:static/wasm-linux/web-container 模式下前端 Runner 的入口 URL。
+                         sandbox 模式下为空。V1 由后端 embed.FS 下发,值形如 "/v1/scenarios/{slug}/bundle/index.html"
+            description: ScenarioDetail 场景详情(完整字段)
+        ScenarioReply:
+            type: object
+            properties:
+                scenario:
+                    $ref: '#/components/schemas/ScenarioDetail'
+        StartScenarioReply:
+            type: object
+            properties:
+                attemptId:
+                    type: string
+                terminalUrl:
+                    type: string
+                expiresAt:
+                    type: string
+                    description: 空闲超时时间(RFC3339)
+                executionMode:
+                    type: string
+                    description: 执行模式(冗余下发,前端不必再查场景详情就能选 Runner)
+                bundleUrl:
+                    type: string
+                    description: bundle 资源入口(非 sandbox 模式必填)
+        StartScenarioRequest:
+            type: object
+            properties:
+                slug:
+                    type: string
+        Status:
+            type: object
+            properties:
+                code:
+                    type: integer
+                    description: The status code, which should be an enum value of [google.rpc.Code][google.rpc.Code].
+                    format: int32
+                message:
+                    type: string
+                    description: A developer-facing error message, which should be in English. Any user-facing error message should be localized and sent in the [google.rpc.Status.details][google.rpc.Status.details] field, or localized by the client.
+                details:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/GoogleProtobufAny'
+                    description: A list of messages that carry the error details.  There is a common set of message types for APIs to use.
+            description: 'The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https://github.com/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https://cloud.google.com/apis/design/errors).'
+        TerminateAttemptReply:
+            type: object
+            properties:
+                status:
+                    type: string
+        TerminateAttemptRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+tags:
+    - name: Attempt
+      description: |-
+        =====================================================================
+         Attempt 场景尝试服务
+         =====================================================================
+    - name: Scenario
+      description: |-
+        =====================================================================
+         Scenario 场景元信息服务
+         =====================================================================

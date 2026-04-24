@@ -72,6 +72,9 @@ func builtinScenarios() []*Scenario {
 		scenarioFrontendDevserverDown(),
 		scenarioBackendAPI500(),
 		scenarioOpsNginxUpstreamFail(),
+		scenarioCSSFlexCenter(),
+		scenarioWebContainerNodeHello(),
+		scenarioWasmLinuxHello(),
 	}
 }
 
@@ -261,6 +264,208 @@ func scenarioBackendAPI500() *Scenario {
 			{Level: 1, Content: "API 返回 500 但你不知道为啥?先看服务的错误日志,别盲猜"},
 			{Level: 2, Content: "日志会告诉你数据库相关的错。检查配置文件里的数据库密码是否正确"},
 			{Level: 3, Content: "看 /var/log/app/error.log 发现 password authentication failed。cat /etc/app/config.yaml 对比 PostgreSQL 的实际密码。改对后 systemctl restart app"},
+		},
+	}
+}
+
+// scenarioCSSFlexCenter V1 首个 static 执行模式场景 —— 纯前端判题,不起容器
+//
+// 场景目标:教会学员用 Flex 在两个轴上把子元素居中。判题逻辑写在 bundle 的 HTML 里
+// (view-source 即可见),适合"学原理"题型,不打算防爆解 —— 真要防爆解走 sandbox。
+//
+// 为什么挂在 frontend 分类 + difficulty 1:
+//   - 前端新人第一周常踩的坑(margin: auto? transform? 还是 flex?)
+//   - 放 difficulty 1 让学员在 hello-world 之后很快遇到,建立对"题型"的信心
+func scenarioCSSFlexCenter() *Scenario {
+	return &Scenario{
+		Slug:    "css-flex-center",
+		Version: "1.0.0",
+		Title:   "CSS Flexbox 水平垂直居中",
+		Summary: "用 flex 把一个元素在容器里居中 —— 最基础但最常问的 CSS 面试题",
+		DescriptionMd: `# CSS Flexbox 水平垂直居中
+
+## 背景
+
+这是前端八股里问烂了,但实战里又天天写错的题:
+
+> **给定一个容器和一个子元素,让子元素在容器里水平 + 垂直居中。**
+
+你会在右边看到一个在线 CSS 编辑器 + 实时预览。容器 ` + "`.container`" + ` 是一个黄色盒子,
+里面有一个蓝色 ` + "`.box`" + `,现在 box 被挤在左上角。
+
+## 你的任务
+
+1. 让 ` + "`.container`" + ` 成为 flex 布局
+2. 让 ` + "`.box`" + ` 在容器里**水平且垂直居中**
+3. **不要**改 ` + "`.box`" + ` 自己的宽高
+
+## 验收标准
+
+判题时会:
+
+- 校验 ` + "`.container`" + ` 的 computedStyle.display === 'flex'(或 'inline-flex')
+- 计算 ` + "`.box`" + ` 与 ` + "`.container`" + ` 的中心点,两个轴偏移都 ≤ 2px 视为通过
+
+## 提示
+
+- 主轴用什么属性控制对齐?交叉轴又是哪个?
+- ` + "`justify-content`" + ` 和 ` + "`align-items`" + ` 分别管谁
+- 亚像素取整:2px 容忍已经给得够宽了
+`,
+		Category:         "frontend",
+		Difficulty:       1,
+		EstimatedMinutes: 5,
+		TargetPersonas:   []string{"frontend-engineer", "full-stack", "student"},
+		ExperienceLevel:  "intern",
+		TechStack:        []string{"css", "flexbox"},
+		Skills:           []string{"flexbox", "layout", "centering"},
+		Commands:         []string{}, // static 模式不跑 shell
+		Tags:             []string{"interview-common", "frontend-basics", "static"},
+		ExecutionMode:    ExecutionModeStatic,
+		// Runtime 在 static 模式下不起作用,留空即可
+		// Grading 同样不走后端 check.sh,判题在 bundle 内 postMessage 回传
+		Hints: []Hint{
+			{Level: 1, Content: "主轴默认是水平方向,justify-content 管主轴对齐。要让子元素在主轴居中,用 center"},
+			{Level: 2, Content: "交叉轴用 align-items 控制。两个都设为 center,box 自然就居中了"},
+			{Level: 3, Content: ".container { display: flex; justify-content: center; align-items: center; }"},
+		},
+	}
+}
+
+// scenarioWebContainerNodeHello V1 首个 web-container 执行模式场景
+//
+// 原理:浏览器里用 StackBlitz WebContainer 起一个 Node.js runtime,
+// 挂载 bundle 下发的 project.json 文件树,用户直接在浏览器里改代码 + 跑 npm install + node check.mjs,
+// 后端完全不碰代码。
+//
+// 相比 sandbox 容器方案的取舍:
+//   - 优点:冷启动快(不用拉镜像)、资源占用低(所有算力挪到用户浏览器)、
+//     任意多用户并发零成本、部署零依赖(不需要 Docker)
+//   - 缺点:浏览器要支持 SharedArrayBuffer(需要 COOP/COEP 跨域隔离头),
+//     Node 版本跟着 WebContainer 走,不能随便指定
+//
+// 适合题型:纯前端 / Node 小题,不涉及原生依赖(如 sharp、node-gyp)
+func scenarioWebContainerNodeHello() *Scenario {
+	return &Scenario{
+		Slug:    "webcontainer-node-hello",
+		Version: "1.0.0",
+		Title:   "Node.js 入门:修复 greeting handler",
+		Summary: "浏览器里直接跑 Node,修一个对象字段名拼错的 bug",
+		DescriptionMd: `# Node.js 入门:修复 greeting handler
+
+## 背景
+
+你面前是一个极简 Node 项目,跑在**浏览器里的 Node.js runtime**(StackBlitz WebContainer)。
+完全不需要后端容器,连 npm install 都在你的浏览器里跑。
+
+## 你的任务
+
+打开 ` + "`handler.js`" + `,里面有一个默认导出函数:
+
+` + "```js" + `
+export default function greet(name) {
+  return { greet: 'hello ' + name }   // 这里故意写错了
+}
+` + "```" + `
+
+判题脚本 ` + "`check.mjs`" + ` 会用 ` + "`name='world'`" + ` 调它,期望返回值是
+` + "`{ greeting: 'hello world' }`" + `。
+
+**注意字段名是 ` + "`greeting`" + `,不是 ` + "`greet`" + `**。
+
+修好后点"检查答案",Runner 会在 WebContainer 里 ` + "`node check.mjs`" + `,
+退出码 0 即通关。
+
+## 提示
+
+- 打开 ` + "`check.mjs`" + ` 看一眼判题逻辑,比盲改更快
+- 终端面板会显示命令输出,报错信息就在那里
+- 改完记得保存(Runner 会把编辑器内容同步回 WebContainer)
+`,
+		Category:         "backend",
+		Difficulty:       1,
+		EstimatedMinutes: 5,
+		TargetPersonas:   []string{"backend-engineer", "full-stack", "student"},
+		ExperienceLevel:  "intern",
+		TechStack:        []string{"nodejs", "javascript"},
+		Skills:           []string{"debugging", "basic-js"},
+		Commands:         []string{}, // web-container 模式 UI 自带命令,不需要裸终端
+		Tags:             []string{"interview-common", "web-container", "nodejs-basics"},
+		ExecutionMode:    ExecutionModeWebContainer,
+		Hints: []Hint{
+			{Level: 1, Content: "check.mjs 里那句 `out.greeting !== expected.greeting` 就是全部线索"},
+			{Level: 2, Content: "把 handler.js 里的字段名 `greet` 改成 `greeting` 即可"},
+			{Level: 3, Content: "return { greeting: 'hello ' + name }"},
+		},
+	}
+}
+
+// scenarioWasmLinuxHello V1 首个 wasm-linux 执行模式场景
+//
+// 原理:浏览器里用 v86(GPL 开源 x86 模拟器,WebAssembly 版)跑一个极简 Linux(BusyBox),
+// 判题和终端交互都在 iframe 内通过 v86 的 serial adapter 完成,
+// 跟 Static 模式共用 opslabs:ready / opslabs:check 这套 postMessage 协议。
+//
+// 为什么不用 CheerpX:
+//   - CheerpX 需要商业 license,二次分发受限
+//   - v86 GPL 可以自由 embed,首屏大小约 300KB(压缩后),磁盘镜像可以用精简 BusyBox ~4MB
+//
+// 为什么走 iframe + postMessage 而不是像 WebContainer 那样 main frame:
+//   - v86 不依赖 SharedArrayBuffer,没有 cross-origin isolation 要求
+//   - iframe 隔离之后 main thread 不会被模拟器 JIT 卡顿(v86 只是单线程 JS,放 iframe 会好一点)
+//   - 协议一致 → 前端 BundleRunner 一份实现就能带两种模式
+//
+// V1 Round 3 先实装骨架 + 一个 hello-world 题型,后续再扩到真 Linux 运维题
+func scenarioWasmLinuxHello() *Scenario {
+	return &Scenario{
+		Slug:    "wasm-linux-hello",
+		Version: "1.0.0",
+		Title:   "wasm Linux 欢迎:touch 一个文件",
+		Summary: "浏览器本地跑 wasm Linux(v86 + BusyBox),touch 一个文件即通关",
+		DescriptionMd: `# wasm Linux 欢迎
+
+## 背景
+
+你右边看到的是一个**完全跑在你浏览器里的 Linux**:
+
+- **引擎**:[v86](https://github.com/copy/v86)(GPL 开源的 x86 模拟器,WebAssembly 版)
+- **系统**:BusyBox + musl libc 精简镜像,开机约 3 秒
+- **没有后端容器**:你敲的每一条命令都在你当前这个浏览器 tab 里执行,
+  我们的服务器完全不知情
+
+## 你的任务
+
+在 ` + "`/tmp`" + ` 目录下创建一个名为 ` + "`ready.flag`" + ` 的空文件即可通关。
+
+## 验收
+
+Runner 每次点"检查答案"会跑:
+
+` + "```bash" + `
+[ -f /tmp/ready.flag ] && echo OK
+` + "```" + `
+
+看到 ` + "`OK`" + ` 即通过。
+
+## 提示
+
+- 最常用的命令是 ` + "`touch`" + `
+- 看 ` + "`ls /tmp`" + ` 能不能看到你新建的文件
+`,
+		Category:         "ops",
+		Difficulty:       1,
+		EstimatedMinutes: 3,
+		TargetPersonas:   []string{"ops-engineer", "backend-engineer", "student"},
+		ExperienceLevel:  "intern",
+		TechStack:        []string{"linux", "busybox", "wasm"},
+		Skills:           []string{"basic-shell"},
+		Commands:         []string{"touch", "ls", "cat"},
+		Tags:             []string{"onboarding", "wasm-linux", "v86"},
+		ExecutionMode:    ExecutionModeWasmLinux,
+		Hints: []Hint{
+			{Level: 1, Content: "touch 命令可以创建空文件:`touch 文件名`"},
+			{Level: 2, Content: "在 /tmp 目录下创建,完整命令:`touch /tmp/ready.flag`"},
+			{Level: 3, Content: "`touch /tmp/ready.flag`,然后点检查答案"},
 		},
 	}
 }

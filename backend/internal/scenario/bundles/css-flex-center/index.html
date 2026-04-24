@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<!--
+  opslabs 静态场景:CSS Flexbox 水平+垂直居中
+  场景目标:把 .box 水平居中且垂直居中到 .container 内
+  通关条件(由下方 runCheck() 判定,结果经 postMessage 发给父页面):
+    1. .container 是 flex 布局
+    2. .box 的中心点与 .container 的中心点在两个轴上都相差 <= 2px(容忍亚像素)
+
+  注释风格:中文,描述意图。所有判题逻辑都在 view-source 里能看见 —— 对 CSS 这种
+  "学原理"的场景无所谓,真要防爆解应该走 sandbox 模式。
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>CSS Flexbox 居中练习</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    .app {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      height: 100vh;
+      gap: 12px;
+      padding: 12px;
+    }
+    .panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #1e293b;
+    }
+    .panel-title {
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      background: #0b1220;
+      color: #94a3b8;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .panel-title .hint {
+      font-weight: 400;
+      color: #64748b;
+      font-size: 12px;
+    }
+    textarea.editor {
+      flex: 1;
+      padding: 12px;
+      font-family: Menlo, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.55;
+      color: #e2e8f0;
+      background: #0b1220;
+      border: none;
+      outline: none;
+      resize: none;
+    }
+    .preview-wrap {
+      flex: 1;
+      position: relative;
+      background: repeating-linear-gradient(45deg, #0b1220 0 10px, #111827 10px 20px);
+      overflow: auto;
+      min-height: 0;
+    }
+    iframe.preview {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #fff;
+    }
+    .status {
+      padding: 8px 12px;
+      font-size: 12px;
+      border-top: 1px solid #334155;
+      color: #64748b;
+      background: #0b1220;
+      white-space: pre-wrap;
+      font-family: Menlo, Consolas, monospace;
+      min-height: 28px;
+    }
+    .status.ok { color: #4ade80; }
+    .status.bad { color: #f87171; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <section class="panel">
+    <div class="panel-title">
+      <span>style.css(修这里)</span>
+      <span class="hint">目标:把 .box 水平+垂直居中</span>
+    </div>
+    <textarea id="editor" class="editor" spellcheck="false">/* 你的任务:
+ *   1. 让 .container 成为 flex 布局
+ *   2. 让 .box 在容器里水平且垂直居中
+ *   3. 不要改动 .box 自己的宽高
+ *
+ * 现在这份 CSS 故意留了几个坑,自己找找。
+ */
+.container {
+  width: 320px;
+  height: 240px;
+  background: #fde68a;
+  /* 这里需要补全 */
+}
+
+.box {
+  width: 80px;
+  height: 80px;
+  background: #3b82f6;
+  color: white;
+  border-radius: 8px;
+}
+</textarea>
+    <div id="status" class="status">编辑左侧 CSS,实时预览在右边。点"检查答案"判题。</div>
+  </section>
+  <section class="panel">
+    <div class="panel-title">
+      <span>预览</span>
+      <span class="hint">实时渲染</span>
+    </div>
+    <div class="preview-wrap">
+      <iframe id="preview" class="preview" sandbox="allow-same-origin"></iframe>
+    </div>
+  </section>
+</div>
+<script>
+  // ============================================================
+  // opslabs 静态场景 runner 协议
+  // ------------------------------------------------------------
+  // 父页面(StaticRunner)和 bundle iframe 之间用 postMessage 通信:
+  //   父 → 子:  { type: 'opslabs:check' }      — 触发判题
+  //   子 → 父:  { type: 'opslabs:ready' }      — bundle 就绪可判题
+  //   子 → 父:  { type: 'opslabs:check-result', passed, stdout, stderr, exitCode }
+  //
+  // 为什么走 postMessage:
+  //   - bundle 跑在 iframe 里,同源 / 跨域都 OK
+  //   - 父页面拿到结果后统一走 POST /v1/attempts/{id}/check 带 client_result 上报
+  //     后端只做存库 + 统计,不跑任何判题逻辑
+  // ============================================================
+
+  const editor = document.getElementById('editor')
+  const preview = document.getElementById('preview')
+  const statusEl = document.getElementById('status')
+
+  // 组装最终要注入 iframe 的 HTML(preview 文档)
+  function buildPreviewHTML(userCss) {
+    return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><style>
+  html,body{margin:0;padding:0;height:100%;}
+  body{display:flex;align-items:center;justify-content:center;background:#f8fafc;}
+  ${userCss}
+</style></head>
+<body>
+  <div class="container" id="container">
+    <div class="box" id="box">居中我</div>
+  </div>
+</body></html>`
+  }
+
+  function updatePreview() {
+    const html = buildPreviewHTML(editor.value)
+    preview.srcdoc = html
+  }
+
+  // 编辑时节流更新预览,避免每次键盘抖动都重刷 iframe
+  let editTimer = null
+  editor.addEventListener('input', () => {
+    clearTimeout(editTimer)
+    editTimer = setTimeout(updatePreview, 150)
+  })
+
+  // ============================================================
+  // 判题核心 —— 所有规则都在这一个函数里,读一下就知道通关条件
+  // ============================================================
+  function runCheck() {
+    const doc = preview.contentDocument
+    if (!doc) {
+      return {
+        passed: false,
+        exitCode: 2,
+        stdout: '',
+        stderr: 'preview iframe not ready',
+      }
+    }
+    const container = doc.getElementById('container')
+    const box = doc.getElementById('box')
+    if (!container || !box) {
+      return {
+        passed: false,
+        exitCode: 2,
+        stdout: '',
+        stderr: '.container / .box 元素不存在,不要删了 HTML 标签',
+      }
+    }
+    const cs = doc.defaultView.getComputedStyle(container)
+    if (cs.display !== 'flex' && cs.display !== 'inline-flex') {
+      return {
+        passed: false,
+        exitCode: 1,
+        stdout: '',
+        stderr: `.container 的 display 当前是 "${cs.display}",需要改成 flex`,
+      }
+    }
+    const cRect = container.getBoundingClientRect()
+    const bRect = box.getBoundingClientRect()
+    const dx = Math.abs((cRect.left + cRect.width / 2) - (bRect.left + bRect.width / 2))
+    const dy = Math.abs((cRect.top + cRect.height / 2) - (bRect.top + bRect.height / 2))
+    const TOL = 2 // 亚像素容忍
+    if (dx > TOL || dy > TOL) {
+      return {
+        passed: false,
+        exitCode: 1,
+        stdout: '',
+        stderr: `.box 还没居中 —— 水平偏移 ${dx.toFixed(1)}px,垂直偏移 ${dy.toFixed(1)}px`,
+      }
+    }
+    return {
+      passed: true,
+      exitCode: 0,
+      stdout: 'OK\n.container 已是 flex,.box 在水平 / 垂直都居中',
+      stderr: '',
+    }
+  }
+
+  // 收到父页面 check 请求,跑判题后把结果 post 回去
+  window.addEventListener('message', (e) => {
+    if (!e.data || typeof e.data !== 'object') return
+    if (e.data.type === 'opslabs:check') {
+      const result = runCheck()
+      if (result.passed) {
+        statusEl.textContent = '✓ 通过 —— ' + result.stdout
+        statusEl.className = 'status ok'
+      } else {
+        statusEl.textContent = '✗ 未通过 —— ' + result.stderr
+        statusEl.className = 'status bad'
+      }
+      // ★ 回传给父页面,父页面负责上报 /check
+      window.parent.postMessage({ type: 'opslabs:check-result', ...result }, '*')
+    }
+  })
+
+  // 首次渲染 + 告诉父页面我就绪了
+  updatePreview()
+  // iframe srcdoc 是异步加载,留一帧再通知 ready 更稳
+  requestAnimationFrame(() => {
+    window.parent.postMessage({ type: 'opslabs:ready' }, '*')
+  })
+</script>
+</body>
+</html>

@@ -84,4 +84,19 @@ type Runner interface {
 	Exec(ctx context.Context, containerID, script string, timeout time.Duration) (*ExecResult, error)
 	// Stop 停止并删除容器
 	Stop(ctx context.Context, containerID string) error
+	// Reconcile 启动期一次性钩子:清理上次进程残留的 attempt 容器,
+	// 让端口池和 docker daemon 状态对齐。失败只应记日志,不阻塞启动。
+	// mock runner 实现为 no-op。
+	Reconcile(ctx context.Context) error
+	// Ping 探活:校验 containerID 对应的容器仍在运行
+	//
+	// 语义:
+	//   - nil                     → 容器活着,可以复用(docker state=Running)
+	//   - ErrContainerNotFound    → 容器压根不存在(已被 docker rm / 宿主重启)
+	//   - 其它 error              → 运行时不可达或容器已 Exit,调用方应按需 fallback
+	//
+	// 使用场景:AttemptUsecase.Start 的复用分支 —— store 里还记着活 attempt,
+	// 但真实容器可能被外部 docker rm 掉,Ping 可以把这种"僵尸复用"挡在前面。
+	// mock 实现返回 nil(只要 containerID 在 attempt 表里)。
+	Ping(ctx context.Context, containerID string) error
 }

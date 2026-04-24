@@ -1,0 +1,6 @@
+# 这个空文件只为让 go:embed 能找到目录,别删。
+# 真正的 v86 资源请跑:
+#   ./scripts/fetch-v86.sh        (Linux/macOS)
+#   ./scripts/fetch-v86.ps1       (Windows)
+# 跑完会在同目录下得到:
+#   libv86.js / v86.wasm / seabios.bin / vgabios.bin / linux.iso

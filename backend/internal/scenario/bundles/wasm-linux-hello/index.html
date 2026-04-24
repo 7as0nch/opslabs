@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<!--
+  opslabs wasm-linux 场景:浏览器里的 BusyBox Linux
+  场景目标:用户在 v86 虚拟机终端里 `touch /tmp/ready.flag`,判题检测该文件存在即通关
+
+  架构:
+    - v86 (GPL 开源 x86 模拟器,WebAssembly 版) 在当前 iframe 内跑一套精简 Linux
+    - BIOS / 磁盘镜像从 copy.sh/v86 CDN 拉取(公网 CORS 开放)
+    - serial0 作为虚拟机 stdin/stdout 通道,判题用 serial0-output-byte 采样解析
+    - 父页面(StaticRunner)→ iframe 的通信仍然走 opslabs:check / opslabs:check-result
+      协议跟 Static 模式完全一致,前端 Runner 可以复用同一套代码
+
+  为什么 v86 从 CDN 拉而不是 embed 进 Go 二进制:
+    - libv86.js (~700KB gzip) + v86.wasm (~500KB) + seabios.bin + linux.iso
+      光镜像一个就 4~8MB,全 embed 到后端二进制等于每次部署都带 10MB+ 垃圾
+    - copy.sh 对 Origin 是全开的,直接用最省事
+    - 真要自托管(合规需求),把这几个文件丢到静态 CDN / OSS,改 URL 即可
+
+  注意事项:
+    - v86 在 iframe sandbox="allow-scripts allow-same-origin" 下可以跑
+      (不需要 SharedArrayBuffer / cross-origin isolation,单线程 JIT 够用)
+    - 开机约 3~5 秒,期间 statusEl 显示"启动中"、ready 不发布
+      (父页面靠 opslabs:ready 控制按钮亮起)
+
+  ★★★ 资源加载策略(修复 copy.sh CDN 被墙问题) ★★★
+    - 首选:后端自托管的相对路径 ./vendor/
+      要求用户先跑 scripts/fetch-v86.sh 把 5 个二进制拉进 bundles/wasm-linux-hello/vendor/,
+      embed.FS 会把它们打进 Go 二进制,前端 iframe 走同源请求,不跨域
+    - 备选:copy.sh 官方 CDN
+      脚本没跑 / vendor/ 空目录时 libv86.js 404,降级探测 copy.sh
+    - 全挂:在状态栏和 boot overlay 打明确错误,告诉用户跑 fetch 脚本
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>wasm Linux 欢迎</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: #000;
+    }
+    .topbar {
+      flex-shrink: 0;
+      padding: 8px 12px;
+      background: #0b1220;
+      color: #94a3b8;
+      font-size: 12px;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: Menlo, Consolas, monospace;
+    }
+    .topbar .title { font-weight: 600; color: #e2e8f0; }
+    .topbar .hint { color: #64748b; }
+    .screen-wrap {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      background: #000;
+    }
+    #serial_terminal {
+      flex: 1;
+      width: 100%;
+      font-family: "Menlo", Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.35;
+      color: #e2e8f0;
+      background: #000;
+      border: none;
+      outline: none;
+      resize: none;
+      padding: 10px 12px;
+      white-space: pre;
+      overflow: auto;
+    }
+    .status {
+      flex-shrink: 0;
+      padding: 6px 12px;
+      font-size: 12px;
+      border-top: 1px solid #334155;
+      color: #64748b;
+      background: #0b1220;
+      font-family: Menlo, Consolas, monospace;
+      min-height: 26px;
+      white-space: pre-wrap;
+    }
+    .status.ok { color: #4ade80; }
+    .status.bad { color: #f87171; }
+    .boot-overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: rgba(0,0,0,0.85);
+      color: #cbd5e1;
+      font-family: Menlo, Consolas, monospace;
+      font-size: 13px;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .boot-overlay .dot {
+      display: inline-block;
+      animation: blink 1s infinite;
+    }
+    @keyframes blink { 50% { opacity: 0.3; } }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <span class="title">wasm-linux (v86) · BusyBox</span>
+    <span class="hint" id="hint">启动中,请稍候…</span>
+    <span class="diag" id="diag" style="margin-left:auto;color:#475569;font-size:11px;"></span>
+  </div>
+  <div class="screen-wrap">
+    <textarea id="serial_terminal"
+              spellcheck="false"
+              autocapitalize="off"
+              autocorrect="off"
+              autocomplete="off"
+              placeholder="等待 Linux 启动…&#10;Boot 完成后可以直接在这里敲命令(Enter 换行)"></textarea>
+    <div id="boot-overlay" class="boot-overlay">
+      <div>加载 v86 并引导 BusyBox<span class="dot">…</span></div>
+    </div>
+  </div>
+  <div id="status" class="status">准备加载 v86 + BusyBox 镜像(首次约 4MB,稍慢)</div>
+</div>
+
+<!--
+  v86 主库:**不再直接 <script src=...>,改成动态加载 + 本地优先**
+  先试 ./vendor/libv86.js(后端 embed.FS 下发,同源),失败再降级到 copy.sh
+  具体逻辑在下方 bootLib() 里
+-->
+<script>
+/* ============================================================
+ * opslabs wasm-linux bundle 主逻辑
+ * ------------------------------------------------------------
+ * 与父页面(StaticRunner)的 postMessage 协议:
+ *   子 → 父:  { type: 'opslabs:ready' }
+ *   父 → 子:  { type: 'opslabs:check' }
+ *   子 → 父:  { type: 'opslabs:check-result', passed, exitCode, stdout, stderr }
+ *
+ * 判题实现方式:
+ *   1. 启动完成(检测到 shell prompt) → postMessage ready
+ *   2. 收到 check → 通过 serial0 写入一行 shell 命令,里面夹带唯一 marker:
+ *         [ -f /tmp/ready.flag ] && echo OPSLABS_PASS_<token> || echo OPSLABS_FAIL_<token>
+ *   3. serial0-output-byte 事件里累积字节到 buffer,
+ *      出现 PASS/FAIL marker 就落地结果
+ *   4. 超时 (4s) 兜底:判题返回 failed
+ * ============================================================ */
+
+const statusEl = document.getElementById('status')
+const hintEl = document.getElementById('hint')
+const diagEl = document.getElementById('diag')
+const bootOverlay = document.getElementById('boot-overlay')
+const termEl = document.getElementById('serial_terminal')
+
+// ============================================================
+// 诊断面板 —— 为什么加这个
+// ------------------------------------------------------------
+// 历次修 wasm-linux 都卡在"用户报还是不行,我拿不到任何诊断信息"的循环里:
+//   第一轮以为是 login 没处理,加了 autologin
+//   第二轮以为是 prompt 正则太严,放宽
+//   但用户依然反馈"还是一样"
+// 可能的根因其实有一整堆,光靠盯代码推不出来:
+//   a) libv86.js 从 copy.sh 拉不下来(GFW),本地 vendor 又没 fetch-v86.sh 跑过
+//   b) linux.iso 下载失败 / 超时
+//   c) v86 初始化抛错被 try/catch 吞了
+//   d) serial 根本就没出过字节(bios / kernel 卡住)
+//   e) 出了字节但格式我没覆盖
+// 前四个都不是正则问题,我上面的所有 prompt 识别修补都救不了。
+//
+// 这个诊断面板把关键指标(serial 字节数 / 最近几个字节 / 经过毫秒数)直接
+// 印在 topbar 右上角,用户不用开 DevTools 也能看到"卡在哪"。我 / 下一任
+// 调试者看一眼截图就能判断是走到哪一步。
+// ============================================================
+const bootStartAt = Date.now()
+let firstSerialAt = 0
+let serialByteCount = 0
+function updateDiag() {
+  const elapsed = Math.floor((Date.now() - bootStartAt) / 1000)
+  const tail = serialBuf.slice(-20).replace(/[\r\n]/g, '·')
+  const bytePart = serialByteCount
+    ? `serial: ${serialByteCount}B · …${tail}`
+    : 'serial: 0B (等待内核输出)'
+  diagEl.textContent = `${elapsed}s · ${bytePart}`
+}
+// 1s 一刷,足够让人眼看到进度,不至于抖
+setInterval(updateDiag, 1000)
+
+// v86 资源基址候选:
+//   1. ./vendor  —— 后端 embed 下发,iframe 同源加载(推荐,避开 copy.sh 被墙)
+//   2. https://copy.sh/v86 —— 公共 CDN 兜底(国内网络可能被拦)
+// bootLib() 会依次尝试,哪个能加载 libv86.js 就用哪个后续资源路径。
+//
+// 两个源都约定保留 copy.sh 的目录结构 (build/ bios/ images/),
+// 因此所有 resource URL 后缀都一致,bootEmulator 不需要做路径分发。
+// fetch-v86.sh / fetch-v86.ps1 脚本会把文件拉到 vendor/build/, vendor/bios/, vendor/images/。
+const V86_SOURCES = [
+  { name: 'local vendor', base: './vendor' },
+  { name: 'copy.sh mirror', base: 'https://copy.sh/v86' },
+  // 如果公司内网有镜像,在这里追加即可,例如:
+  // { name: 'internal mirror', base: 'https://mirror.example.com/v86' },
+]
+// 运行时 bootLib() 确定下来的 base,所有 bios / wasm / iso 按这个拼
+let V86_BASE = null
+
+let emulator = null
+// serial0 字节流缓存(解析判题 marker / 检测 shell prompt 用)
+let serialBuf = ''
+// 是否已经发过 ready:避免首屏重复触发
+let readyFired = false
+// 是否已经发过 autologin:copy.sh 新版 linux.iso 走 getty 要求登录,
+//   默认 root 无密码,自动发 "root\n" 就能过 getty 进入 / # shell。
+//   锁住防止 shell 运行中用户 cat 到 "login" 字样触发误发。
+let autoLoginSent = false
+// 是否已经对 "Password:" 提示发过空回车:某些镜像 root 带空密码,按 Enter 过关
+let passwordSent = false
+
+// in-flight 判题请求:父页面发 check 后,这里记录 token + 回调
+let pendingCheck = null // { token, onChunk }
+
+// ------------------------------------------------------------
+// 1. v86 初始化(纯 serial 模式,不挂 VGA screen)
+// ------------------------------------------------------------
+function bootEmulator() {
+  if (!V86_BASE) {
+    // 保险丝:bootLib 没跑或没选定 base 就进了这里,明显是调用顺序 bug
+    statusEl.className = 'status bad'
+    statusEl.textContent = '内部错误:V86_BASE 未设定,bootLib 未正确执行'
+    return
+  }
+  try {
+    // 三类资源都按 copy.sh 的路径约定(build/ bios/ images/),
+    // 同时适配 ./vendor 自托管(fetch 脚本保留同样的目录结构)
+    //
+    // ★ cdrom 用 async: false —— 即 v86 一次性把 4MB linux.iso 全量拉下来 ★
+    //
+    // 之前用 async: true 做懒加载,依赖 HTTP Range 分扇区读取。但:
+    //   1. 后端 bundle handler 旧版本 io.Copy 不支持 Range(已修,但兼容旧二进制)
+    //   2. dev 链路里 vite proxy 对 Range 的转发有边缘 case(开了 changeOrigin 某些
+    //      版本会 drop Content-Range 响应头)
+    //   3. BusyBox iso 总共才 4MB,全量拉一次也就几十毫秒到几百毫秒,不值得为了
+    //      "省带宽"去跟 Range 兼容性斗
+    // 代价:首屏引导慢大概 200~500ms,但换来的是引导必然完成、shell prompt 必然出现,
+    // 父页面 "加载题目 bundle…" overlay 不再挂住,整体体感更好。
+    emulator = new V86({
+      wasm_path: V86_BASE + '/build/v86.wasm',
+      memory_size: 64 * 1024 * 1024,
+      vga_memory_size: 2 * 1024 * 1024,
+      bios: { url: V86_BASE + '/bios/seabios.bin' },
+      vga_bios: { url: V86_BASE + '/bios/vgabios.bin' },
+      // v86 官方提供的 BusyBox 镜像 (~4MB),有 /bin/sh + coreutils + /tmp
+      // async: false 显式关懒加载,整条 ISO 一次下载,不依赖 Range 分段读取
+      cdrom: { url: V86_BASE + '/images/linux.iso', async: false },
+      autostart: true,
+      disable_mouse: true,
+      disable_keyboard: false,
+      // 没传 screen_container —— 纯 serial 模式,VGA 画面不绘制
+    })
+  } catch (e) {
+    statusEl.className = 'status bad'
+    statusEl.textContent = '加载 v86 失败:' + (e && e.message || e) + '\n资源源:' + V86_BASE
+    bootOverlay.textContent = 'v86 加载失败,见底部状态'
+    return
+  }
+
+  // 启动事件:wasm 加载完成
+  emulator.add_listener('emulator-loaded', () => {
+    hintEl.textContent = '引擎已就绪,等待内核启动…'
+  })
+
+  // serial0 输出(内核 printk + BusyBox 的 stdout/stderr)
+  //
+  // 两条处理链路:
+  //   a) serialBuf —— 原样累积所有字节,给 prompt 探测 / 判题 marker 匹配用。
+  //      正则需要看到完整的文本(包括 ESC 序列带来的附加字符不影响 `# ` / `$ ` 行末匹配)
+  //   b) termEl    —— 给人看的显示,必须过滤掉 ANSI 转义序列 + 控制字符,
+  //      否则 textarea 是哑终端不解析 ESC,用户会看到 `??[J` `??[D` 这些垃圾(截图里的现象)
+  emulator.add_listener('serial0-output-byte', (byte) => {
+    const ch = String.fromCharCode(byte)
+    serialByteCount++
+    if (!firstSerialAt) {
+      firstSerialAt = Date.now()
+      console.log('[opslabs/wasm-linux] first serial byte received')
+      scheduleReadyWatchdog()
+    }
+    // (a) 维护一个滚动缓存(最多 32KB),用于 marker 匹配
+    serialBuf += ch
+    if (serialBuf.length > 32 * 1024) {
+      serialBuf = serialBuf.slice(-16 * 1024)
+    }
+    // (b) 过滤后追加到 textarea
+    appendToTerm(byte)
+    termEl.scrollTop = termEl.scrollHeight
+
+    fireReadyIfPromptHit()
+    tryAutologin()
+
+    // in-flight 判题的 marker 匹配
+    if (pendingCheck) {
+      pendingCheck.onChunk()
+    }
+  })
+}
+
+// ------------------------------------------------------------
+// 终端显示过滤:把裸字节流渲染成 "人看起来像终端" 的文本
+// ------------------------------------------------------------
+// 为什么需要:<textarea> 是哑终端,不解析 ANSI 转义序列。BusyBox ash 在默认配
+// 置下会发出 `\x1b[K`(清行)、`\x1b[2J`(清屏)、颜色 `\x1b[1;32m` 等序列;
+// 如果直接 `termEl.value += chr`,ESC (0x1b) 渲染成 `?` 或方块,后面的 `[K` 就
+// 变成字面量挂在屏幕上 —— 就是截图里看到的 `??[J` 垃圾。
+//
+// 状态机(极简,足够覆盖 BusyBox / busybox ash 的常见 CSI 序列):
+//   normal      —— 正常字符直接渲染
+//   esc         —— 刚收到 0x1b,等下一个字节决定是哪种序列
+//   csi         —— ESC [ 之后,直到遇到终止符 0x40-0x7e(@..~)整个序列丢弃
+//   osc         —— ESC ] 之后,直到 BEL(0x07)或 ESC \ 终止,整个序列丢弃
+// 碰到不认识的 ESC 前缀也丢弃,保证无论 shell 发什么花样都不会污染显示。
+//
+// 控制字符处理:
+//   \n (0x0a) / \r (0x0d) / \t (0x09)  保留(终端行为自然)
+//   \b (0x08)                           删掉 textarea 最后一个字符(真退格)
+//   \x07 (BEL)                          丢弃
+//   0x7f (DEL)                          丢弃(只是 Backspace 的 echo,没展示意义)
+//   其它 < 0x20 的控制字符               丢弃
+let termParseState = 'normal'
+function appendToTerm(byte) {
+  switch (termParseState) {
+    case 'normal':
+      if (byte === 0x1b) { termParseState = 'esc'; return }
+      if (byte === 0x08) {
+        // 真退格:把上一个字符从 textarea 里删掉
+        if (termEl.value.length > 0) termEl.value = termEl.value.slice(0, -1)
+        return
+      }
+      if (byte === 0x07 || byte === 0x7f || byte === 0x00) return
+      if (byte < 0x20 && byte !== 0x0a && byte !== 0x0d && byte !== 0x09) return
+      termEl.value += String.fromCharCode(byte)
+      return
+    case 'esc':
+      if (byte === 0x5b) { termParseState = 'csi'; return } // '['
+      if (byte === 0x5d) { termParseState = 'osc'; return } // ']'
+      // 其它 ESC 单字符序列(ESC 7 / ESC 8 / ESC = …),整体丢弃,下一轮回到 normal
+      termParseState = 'normal'
+      return
+    case 'csi':
+      // CSI 参数字节:0x30-0x3f (数字/分号/问号)、中间字节 0x20-0x2f,
+      // 终止字节 0x40-0x7e —— 一旦看到终止字节就整个序列丢弃
+      if (byte >= 0x40 && byte <= 0x7e) termParseState = 'normal'
+      return
+    case 'osc':
+      // OSC 以 BEL(0x07)或 ESC \ 结尾;简化成"任何 BEL 都结束"
+      if (byte === 0x07) termParseState = 'normal'
+      else if (byte === 0x1b) termParseState = 'esc' // 准备接 ST 的 \,但下一个字节不是 [/] 就回 normal
+      return
+  }
+}
+
+// ------------------------------------------------------------
+// autologin —— getty 兜底
+// ------------------------------------------------------------
+// 2026-04-22/23 演进史:
+//   第一轮(R7-02):以为 copy.sh 新 ISO 走 getty,加了 "login:" → "root\n"
+//   第二轮(R7-03a):以为登录后 prompt 从 "/ # " 变 "~ # ",加了宽松正则 + cd /
+//   第三轮(R7-04a,本轮):用户反馈仍然不行。问题不在"识别 prompt",而在
+//     于我一直假设 "serial 流里一定会有 login 提示或 shell prompt";但如果
+//     v86 根本没启动成功(libv86.js 没下来 / linux.iso 403 / wasm 实例化失败),
+//     这个监听器根本不会被调。所以本轮把"ready 判定"从"靠文本驱动"扩成:
+//       a) 严格文本:/ # 出现(老 ISO)
+//       b) 宽松文本:autoLoginSent 之后任意行末 [#$]\s+
+//       c) 密码回车:检测到 "Password:" 就发回车(BusyBox root 空密码)
+//       d) 时间兜底:首个 serial 字节出现后 25s 还没 ready,强制 ready 并给警告,
+//          允许用户直接手动操作 —— 这解决了 b/c 之后某种极端格式没匹配上的死锁
+//       e) 超长静默:30s 完全没 serial 字节 → 底部红字诊断,指引跑 fetch-v86.sh
+// 所有关键节点 console.log,便于截图/DevTools 排查。
+function tryAutologin() {
+  if (readyFired) return
+  // 用户名提示:(none) login: / buildroot login: / 简单的 login:
+  if (!autoLoginSent && /login:/i.test(serialBuf)) {
+    autoLoginSent = true
+    hintEl.textContent = '检测到 login 提示,自动登录 root…'
+    console.log('[opslabs/wasm-linux] login detected → send root')
+    sendSerialString('root\n')
+    // 登录后补一句 cd /,把 cwd 拉回 /,让严格 "/ # " 正则也有命中机会
+    setTimeout(() => {
+      if (!readyFired) {
+        console.log('[opslabs/wasm-linux] post-login: cd /')
+        sendSerialString('cd / 2>/dev/null\n')
+      }
+    }, 700)
+    return
+  }
+  // 密码提示:某些 image 的 root 带空密码,某些需要 enter;直接发回车双保险
+  //   匹配 "Password:" 忽略大小写,允许 root 敲错后也能再触发
+  if (!passwordSent && /password:\s*$/i.test(serialBuf)) {
+    passwordSent = true
+    console.log('[opslabs/wasm-linux] password prompt → send empty enter')
+    sendSerialString('\n')
+  }
+}
+
+function fireReadyIfPromptHit() {
+  if (readyFired) return
+  // 严格:/ # —— 老 ISO / cd / 之后命中
+  const strictHit = /\/ # /.test(serialBuf)
+  // 宽松:autologin 已发过,任意行末 "# " / "$ " / "% "(带尾随空白可选)
+  //
+  // 2026-04-23 截图补的 `%`:看到过 `/root%` / `/%` 作为提示符的 BusyBox 构建,
+  // 之前只认 # 和 $ 就没命中,ready 要靠 watchdog 25s 才兜底。把 % 也加进去,
+  // 正常情况下一旦 autologin 完成就立刻 ready,不再干等 25s。
+  // 同时把 \s+ 放宽成 \s*,避免某些 shell 打 prompt 时不尾随空白直接让用户输入
+  const looseHit = autoLoginSent && /[#$%]\s*$/.test(serialBuf)
+  if (strictHit || looseHit) {
+    fireReady('prompt:' + (strictHit ? 'strict' : 'loose'))
+  }
+}
+
+function fireReady(reason) {
+  if (readyFired) return
+  readyFired = true
+  bootOverlay.style.display = 'none'
+  hintEl.textContent = '已就绪,可敲命令'
+  statusEl.className = 'status'
+  statusEl.textContent = 'Linux 启动完成(' + reason + ')。你的任务:touch /tmp/ready.flag'
+  console.log('[opslabs/wasm-linux] ready fired, reason=', reason)
+  window.parent.postMessage({ type: 'opslabs:ready' }, '*')
+}
+
+// 首字节出现后启动"最终兜底"定时器:READY_WATCHDOG_MS 后强制 ready,
+// 避免某些新镜像的 prompt 格式我没覆盖到、又死锁在"加载题目 bundle…"的情况。
+// 这是 UX 降级方案:即使还没真进 shell,也把遮罩拿掉,用户能自己敲命令自救。
+// 25s 的量级:看过几次真实启动,copy.sh BusyBox 大约 5-15s 到 shell,给足 10s 余量。
+const READY_WATCHDOG_MS = 25_000
+let readyWatchdogScheduled = false
+function scheduleReadyWatchdog() {
+  if (readyWatchdogScheduled) return
+  readyWatchdogScheduled = true
+  setTimeout(() => {
+    if (readyFired) return
+    console.warn('[opslabs/wasm-linux] ready watchdog expired → force ready (lax)')
+    hintEl.textContent = '未匹配到预期 prompt,已强制放行 —— 如需重新登录可手动输 root/回车'
+    fireReady('watchdog:25s')
+  }, READY_WATCHDOG_MS)
+}
+
+// 30s 完全没拿到 serial 字节 → 基本可以确定 v86 / 资源根本没起来
+// 打红字让用户知道去跑 fetch-v86.sh,不再傻等
+setTimeout(() => {
+  if (serialByteCount === 0) {
+    console.error('[opslabs/wasm-linux] no serial output for 30s')
+    statusEl.className = 'status bad'
+    statusEl.textContent =
+      '内核 30s 未输出任何字符:资源可能没加载成功。请在仓库根目录跑 scripts/fetch-v86.sh' +
+      '(Linux/macOS)或 scripts/fetch-v86.ps1(Windows)把 libv86.js / seabios.bin / linux.iso 拉到 vendor/,再刷新本页。'
+  }
+}, 30_000)
+
+// ------------------------------------------------------------
+// 2. 终端输入:纯 char-mode —— 每个按键立刻写进 serial0
+// ------------------------------------------------------------
+// 2026-04-23 (R7-04c) 重写:
+//   之前版本同时维护 lineBuf(前端行缓冲)和 sendSerialString(每个字符),导致:
+//     - 每敲一个字符发一次 → shell 收到 "l"、"s"
+//     - 回车再 sendSerialString(lineBuf + '\n') → shell 再次收到完整的 "ls\n"
+//     - 最终 shell 收到 "lsls\n",命令行出现重复字符
+//   Backspace 的 '\b \b' 是 ANSI 光标回退,对某些 BusyBox readline 模式反而不被认,
+//   用户体感"Backspace 删不掉"。
+//
+// 现在改成纯 char-mode:
+//   - 所有按键都 preventDefault,textarea 不再自己改内容(只由 serial 回显驱动)
+//   - 每个键直接翻译成 serial bytes 发出去,不再维护前端 lineBuf
+//   - shell 的 echo/readline 行为自然就对了 —— 跟物理终端插 tty 上一样
+// 键位映射:
+//   Enter     → '\r'              (TTY 语义下按回车就是 CR)
+//   Backspace → 0x7f (DEL)        (BusyBox `stty erase ^?` 默认,能被 readline 识别为退格)
+//   Tab       → '\t'              (shell auto-complete)
+//   Ctrl+C    → 0x03              (SIGINT)
+//   Ctrl+D    → 0x04              (EOF)
+//   Ctrl+L    → 0x0c              (清屏,很多 shell 支持)
+//   ↑/↓/←/→   → ESC [ A/B/C/D     (shell 历史 / 行内光标)
+//   Delete    → ESC [ 3 ~         (readline 认的 forward-delete)
+//   Home/End  → ESC [ H / ESC [ F
+//   其它可打印字符 → 原样单字节送出
+termEl.addEventListener('keydown', (e) => {
+  if (!emulator) return
+  // ★ 2026-04-22 之前这里守着 !readyFired 就 preventDefault,本意是"未启动完不响应
+  //   键盘"。但新版 copy.sh linux.iso 走 getty 要 login,ready 条件 "/ # " 在登录前
+  //   不可能出现,守卫会把用户手动输入 root 的尝试也吞掉,autologin 失效时就死锁。
+  //   现在只要求 emulator 存在就允许输入。
+
+  // Ctrl 组合键
+  if (e.ctrlKey && !e.altKey && !e.metaKey) {
+    const k = e.key.toLowerCase()
+    if (k === 'c') { e.preventDefault(); sendSerialBytes([0x03]); return }
+    if (k === 'd') { e.preventDefault(); sendSerialBytes([0x04]); return }
+    if (k === 'l') { e.preventDefault(); sendSerialBytes([0x0c]); return }
+    if (k === 'u') { e.preventDefault(); sendSerialBytes([0x15]); return }
+    if (k === 'a') { e.preventDefault(); sendSerialBytes([0x01]); return }
+    if (k === 'e') { e.preventDefault(); sendSerialBytes([0x05]); return }
+    if (k === 'k') { e.preventDefault(); sendSerialBytes([0x0b]); return }
+    if (k === 'w') { e.preventDefault(); sendSerialBytes([0x17]); return }
+    // 其它 Ctrl 组合保留浏览器默认(Ctrl+R 刷新、Ctrl+T 新 tab 等)
+    return
+  }
+
+  // 特殊键:全部 preventDefault,不让 textarea 自己处理
+  //
+  // ★ 为什么箭头键 / Delete / Home / End 都吃掉不转发(2026-04-23 R7-04d):
+  //   这些键对应 ANSI CSI 转义序列(ESC [ A / ESC [ 3 ~ 等),BusyBox ash 在非
+  //   line-editing 模式下不认,会把整个序列原样 echo 回来。但我们前端是哑 textarea,
+  //   即使现在有 ANSI 过滤状态机,这些"没被 shell 吃掉"的 ESC 也只是被过滤器丢弃,
+  //   用户得不到任何可视反馈,只会觉得"这个键怎么按了没反应"。不如直接 preventDefault
+  //   不做任何事,用户心里会直接意识到"这个哑终端不支持方向键",降低困惑。
+  //   历史(命令上箭头)未来如果真要支持,正确方案是引入 xterm.js 而不是继续发 ESC 序列。
+  switch (e.key) {
+    case 'Enter':
+      e.preventDefault()
+      sendSerialBytes([0x0d]) // CR
+      return
+    case 'Backspace':
+      e.preventDefault()
+      sendSerialBytes([0x7f]) // DEL —— BusyBox 默认 stty erase 识别这个做退格
+      return
+    case 'Tab':
+      e.preventDefault()
+      sendSerialBytes([0x09])
+      return
+    // 箭头 / Delete / Home / End / Escape —— 哑终端下发过去只会产生乱码,直接 noop
+    case 'ArrowUp':
+    case 'ArrowDown':
+    case 'ArrowLeft':
+    case 'ArrowRight':
+    case 'Delete':
+    case 'Home':
+    case 'End':
+    case 'PageUp':
+    case 'PageDown':
+    case 'Escape':
+      e.preventDefault()
+      return
+  }
+
+  // 可打印单字符:a-z, 0-9, 空格, 各种符号
+  if (e.key.length === 1 && !e.metaKey && !e.altKey) {
+    e.preventDefault()
+    const code = e.key.charCodeAt(0) & 0xff
+    sendSerialBytes([code])
+  }
+})
+
+// textarea 要阻止用户自己 paste / cut / 手动删改,所有显示都由 serial 回显推动
+termEl.addEventListener('paste', (e) => {
+  if (!emulator) return
+  e.preventDefault()
+  const text = (e.clipboardData && e.clipboardData.getData('text')) || ''
+  // 一次性把粘贴板字符塞进 serial(shell 会自己处理换行与 echo)
+  sendSerialString(text.replace(/\r\n/g, '\r'))
+})
+termEl.addEventListener('cut', (e) => e.preventDefault())
+termEl.addEventListener('drop', (e) => e.preventDefault())
+
+function sendSerialString(s) {
+  const bytes = []
+  for (let i = 0; i < s.length; i++) {
+    bytes.push(s.charCodeAt(i) & 0xff)
+  }
+  sendSerialBytes(bytes)
+}
+
+function sendSerialBytes(bytes) {
+  if (!emulator) return
+  // v86 不同版本的 API 名称:老版用 bus.send('serial0-input', byte),新版加了 serial0_send
+  if (typeof emulator.serial0_send === 'function') {
+    emulator.serial0_send(String.fromCharCode.apply(null, bytes))
+    return
+  }
+  if (emulator.bus && typeof emulator.bus.send === 'function') {
+    for (const b of bytes) {
+      emulator.bus.send('serial0-input', b)
+    }
+  }
+}
+
+// ------------------------------------------------------------
+// 3. 判题:父页面 postMessage 触发
+// ------------------------------------------------------------
+const CHECK_TIMEOUT_MS = 4000
+
+function runCheck() {
+  if (!readyFired || !emulator) {
+    return Promise.resolve({
+      passed: false,
+      exitCode: 2,
+      stdout: '',
+      stderr: 'Linux 还在启动中,请等待 shell 提示符出现再点检查',
+    })
+  }
+  // 唯一 token 避免历史 marker 误判
+  const token = Math.random().toString(36).slice(2, 10)
+  const passMark = 'OPSLABS_PASS_' + token
+  const failMark = 'OPSLABS_FAIL_' + token
+  const startIdx = serialBuf.length
+  const cmd = '[ -f /tmp/ready.flag ] && echo ' + passMark + ' || echo ' + failMark + '\n'
+
+  return new Promise((resolve) => {
+    const cleanup = () => {
+      clearTimeout(timer)
+      if (pendingCheck && pendingCheck.token === token) pendingCheck = null
+    }
+    const onChunk = () => {
+      const windowBuf = serialBuf.slice(startIdx)
+      if (windowBuf.includes(passMark)) {
+        cleanup()
+        resolve({
+          passed: true,
+          exitCode: 0,
+          stdout: 'OK\n/tmp/ready.flag 存在',
+          stderr: '',
+        })
+      } else if (windowBuf.includes(failMark)) {
+        cleanup()
+        resolve({
+          passed: false,
+          exitCode: 1,
+          stdout: '',
+          stderr: '/tmp/ready.flag 不存在,请先执行 touch /tmp/ready.flag',
+        })
+      }
+    }
+    const timer = setTimeout(() => {
+      cleanup()
+      resolve({
+        passed: false,
+        exitCode: 124,
+        stdout: '',
+        stderr: '判题命令 ' + CHECK_TIMEOUT_MS + 'ms 无响应(shell 可能卡住)',
+      })
+    }, CHECK_TIMEOUT_MS)
+    pendingCheck = { token, onChunk }
+    sendSerialString(cmd)
+  })
+}
+
+window.addEventListener('message', async (e) => {
+  if (!e.data || typeof e.data !== 'object') return
+  if (e.data.type !== 'opslabs:check') return
+  const result = await runCheck()
+  if (result.passed) {
+    statusEl.className = 'status ok'
+    statusEl.textContent = '✓ 通过 —— ' + result.stdout
+  } else {
+    statusEl.className = 'status bad'
+    statusEl.textContent = '✗ 未通过 —— ' + result.stderr
+  }
+  window.parent.postMessage({ type: 'opslabs:check-result', ...result }, '*')
+})
+
+// 全局错误兜底
+window.addEventListener('error', (e) => {
+  if (statusEl.className === 'status') {
+    statusEl.className = 'status bad'
+    statusEl.textContent = 'bundle error: ' + (e.message || 'unknown')
+  }
+})
+
+// ------------------------------------------------------------
+// 4. bootLib:按 V86_SOURCES 顺序动态加载 libv86.js
+// ------------------------------------------------------------
+// 设计要点:
+//   - 不用 <script src> 静态引用 libv86.js —— 否则 CDN 403/超时时没有降级点
+//   - 逐个 createElement('script') 追加并 await onload/onerror;第一个成功的
+//     source 被选作 V86_BASE,后续 wasm/bios/iso 的 URL 都基于它拼
+//   - 超时保护:每个源 8s 没 load 就当失败(copy.sh 被 GFW 慢速拦截会挂很久)
+//   - 全部失败时在底栏给出明确指引:跑 scripts/fetch-v86.sh
+function loadScriptWithTimeout(src, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script')
+    s.src = src
+    s.async = true
+    let done = false
+    const finish = (ok, reason) => {
+      if (done) return
+      done = true
+      clearTimeout(t)
+      if (ok) resolve()
+      else {
+        // 失败时把 script 节点移除,避免累积污染 DOM
+        s.parentNode && s.parentNode.removeChild(s)
+        reject(reason)
+      }
+    }
+    const t = setTimeout(() => finish(false, new Error('timeout')), timeoutMs)
+    s.onload = () => finish(true)
+    s.onerror = () => finish(false, new Error('script error'))
+    document.head.appendChild(s)
+  })
+}
+
+async function bootLib() {
+  hintEl.textContent = '加载 v86 主库…'
+  for (const src of V86_SOURCES) {
+    const url = src.base + '/build/libv86.js'
+    statusEl.textContent = '尝试加载 v86 主库:' + src.name + ' (' + url + ')'
+    try {
+      await loadScriptWithTimeout(url, 8000)
+    } catch (e) {
+      // 单源失败不算错,打到 status 后继续下一个
+      console.warn('[opslabs/wasm-linux] libv86 load failed from', src.name, e)
+      continue
+    }
+    // script onload 不代表全局对象一定就位(极少数 CDN 回 200 但正文异常)
+    if (typeof V86 === 'undefined') {
+      console.warn('[opslabs/wasm-linux] libv86 loaded but V86 undefined from', src.name)
+      continue
+    }
+    V86_BASE = src.base
+    hintEl.textContent = 'v86 主库已就绪 (' + src.name + '),启动虚拟机…'
+    statusEl.textContent = '已使用资源源:' + src.name + '(' + V86_BASE + ')'
+    bootEmulator()
+    return
+  }
+
+  // 全部失败
+  statusEl.className = 'status bad'
+  statusEl.textContent =
+    'libv86.js 未加载成功。请在仓库根目录执行 scripts/fetch-v86.sh(Linux/macOS)' +
+    '或 scripts/fetch-v86.ps1(Windows)把资源拉到 vendor/,再重试。'
+  hintEl.textContent = '加载失败'
+  bootOverlay.innerHTML =
+    '<div style="text-align:center">v86 资源加载失败<br>' +
+    '<span style="font-size:12px;color:#94a3b8">详情见底部状态栏</span></div>'
+}
+
+// DOM ready 后开跑。document.readyState 可能已经是 interactive/complete,
+// 不能只依赖 'load' 事件(否则热刷新/缓存命中时 listener 永远不触发)
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootLib)
+} else {
+  bootLib()
+}
+</script>
+</body>
+</html>

@@ -43,8 +43,7 @@ func newApp(
 	gs *grpc.Server,
 	hs *http.Server,
 	ws *server.WebSocketApp,
-	reaper *server.AttemptReaper,
-	bootstrapper *server.AttemptBootstrapper,
+	gc *server.GCServer,
 ) *kratos.App {
 	return kratos.New(
 		kratos.ID(id),
@@ -53,12 +52,12 @@ func newApp(
 		kratos.Metadata(map[string]string{}),
 		kratos.Logger(logger),
 		kratos.Server(
-			// bootstrapper 放第一个:先回灌 store 再开放对外服务
-			bootstrapper,
+			// Round 6:AttemptBootstrapper 已删除,runner.Reconcile 合并到 gc.Start。
+			// gc 放在第一位依旧保证启动期 reconcile 先跑,再开放对外服务。
+			gc,
 			gs,
 			hs,
 			ws,
-			reaper,
 		),
 	)
 }

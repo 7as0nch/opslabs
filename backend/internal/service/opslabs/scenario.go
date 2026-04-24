@@ -67,11 +67,13 @@ func toScenarioBrief(sc *scenario.Scenario) *pb.ScenarioBrief {
 		TechStack:        sc.TechStack,
 		Tags:             sc.Tags,
 		IsPremium:        sc.IsPremium,
+		ExecutionMode:    sc.EffectiveExecutionMode(),
 	}
 }
 
 // toScenarioDetail scenario.Scenario -> pb.ScenarioDetail
 // Week 1 hint.content 始终置空,后续解锁逻辑上线后才下发
+// bundleUrl 非 sandbox 模式下才下发,sandbox 为空串
 func toScenarioDetail(sc *scenario.Scenario) *pb.ScenarioDetail {
 	hints := make([]*pb.Hint, 0, len(sc.Hints))
 	for _, h := range sc.Hints {
@@ -81,6 +83,7 @@ func toScenarioDetail(sc *scenario.Scenario) *pb.ScenarioDetail {
 			Content:  h.Content, // 不下发
 		})
 	}
+	mode := sc.EffectiveExecutionMode()
 	return &pb.ScenarioDetail{
 		Slug:             sc.Slug,
 		Version:          sc.Version,
@@ -98,5 +101,20 @@ func toScenarioDetail(sc *scenario.Scenario) *pb.ScenarioDetail {
 		Tags:             sc.Tags,
 		Hints:            hints,
 		IsPremium:        sc.IsPremium,
+		ExecutionMode:    mode,
+		BundleUrl:        bundleURLForMode(mode, sc.Slug),
 	}
+}
+
+// bundleURLForMode 只有非 sandbox 模式返回 bundle 入口 URL
+//
+// sandbox 不需要 bundle,前端直连 terminal_url 起 ttyd iframe;
+// static / wasm-linux / web-container 三种都需要拉前端资源,但入口文件名各不相同
+// (static / wasm-linux 是 index.html;web-container 是 project.json),
+// 具体映射收敛到 BundleEntryURLFor
+func bundleURLForMode(mode, slug string) string {
+	if mode == "" || mode == scenario.ExecutionModeSandbox {
+		return ""
+	}
+	return BundleEntryURLFor(mode, slug)
 }

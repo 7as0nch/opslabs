@@ -33,10 +33,11 @@ const (
 // 语义:
 //   - Create/Update 常规 CRUD,错误直接回写
 //   - FindByID 命中不到返回 ErrAttemptNotFound(而不是 gorm.ErrRecordNotFound)
-//   - ListRunning 用于进程重启时恢复内存缓存(Week 1 用不到,但接口先占位)
+//
+// 注:ListRunning 已于 Round 6 移除 —— AttemptStore 迁 Redis 后不再需要
+// "进程启动时从 DB 回灌内存缓存",Redis 本身就是跨进程共享。
 type AttemptRepo interface {
 	Create(ctx context.Context, a *Attempt) error
 	Update(ctx context.Context, a *Attempt) error
 	FindByID(ctx context.Context, id int64) (*Attempt, error)
-	ListRunning(ctx context.Context) ([]*Attempt, error)
 }

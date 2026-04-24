@@ -1,0 +1,31 @@
+{
+  "task": "create PLAN.md for opslabs project lifecycle planning",
+  "affected_area": [
+    "PLAN.md",
+    "project planning documentation"
+  ],
+  "source_documents": [
+    "README.md",
+    "WEEK1_BACKLOG.md",
+    "draft.md",
+    "docs/CHANGELOG.md",
+    "backend/internal/scenarios/README.md",
+    "backend/internal/scenarios/draft.md",
+    "backend/internal/scenarios/template.md",
+    "backend/internal/scenario/registry.go",
+    "backend/internal/biz/attempt/usecase.go",
+    "frontend/src/pages/Scenario.tsx"
+  ],
+  "observations": [
+    "The project has moved beyond the original Week 1 mock/Docker MVP plan.",
+    "The current codebase includes Go Kratos backend, React/Vite frontend, Docker runtime, Redis-backed attempt store, GC/stale-container cleanup, and multiple execution modes.",
+    "The registry currently defines seven scenarios, but only hello-world appears as a fully materialized Docker scenario under scenarios/ by default.",
+    "The next planning document should focus on productization, content production, launch readiness, compliance, and one-person company operations."
+  ],
+  "constraints": [
+    "Use UTF-8 Chinese documentation.",
+    "Do not over-abstract.",
+    "Keep project facts aligned with repository state.",
+    "Create PLAN.md at repository root."
+  ]
+}

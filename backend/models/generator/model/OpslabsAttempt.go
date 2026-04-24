@@ -17,13 +17,16 @@ const TableNameOpslabsAttempt = "opslabs_attempts"
 //
 // 规约:
 //   - ID 复用 models.Model 里的 bigint 雪花 ID,API 层以字符串输出
-//   - UserID=0 表示匿名(Week 1 未接入登录)
+//   - UserID=0 表示匿名(Week 1 未接入登录,保留向后兼容)
+//   - ClientID 前端生成的 uuid(localStorage 持久化),未接入登录前做"谁在做"标识
+//     与 UserID 并存:登录接入后 UserID 主导,ClientID 仅用于同一用户多设备区分
 //   - ContainerID 是容器运行时返回的 ID,mock 模式下是 32 字符 hex
 //   - HostPort 是宿主机映射的 ttyd 端口,Stop 时归还端口池
 //   - Status/FinishedAt/DurationMS 构成状态机快照
 type OpslabsAttempt struct {
 	models.Model
 	UserID       int64            `json:"userId" gorm:"column:user_id;type:bigint;default:0;index" db:"user_id"`                      // 用户ID(0 表示匿名)
+	ClientID     string           `json:"clientId" gorm:"column:client_id;type:varchar(64);index" db:"client_id"`                     // 前端 clientID(匿名场景做 owner 标识)
 	ScenarioSlug string           `json:"scenarioSlug" gorm:"column:scenario_slug;type:varchar(64);index;not null" db:"scenario_slug"` // 场景 slug
 	ContainerID  string           `json:"containerId" gorm:"column:container_id;type:varchar(128)" db:"container_id"`                 // 运行时容器 ID
 	HostPort     int              `json:"hostPort" gorm:"column:host_port;type:integer;default:0" db:"host_port"`                     // 宿主机 ttyd 端口

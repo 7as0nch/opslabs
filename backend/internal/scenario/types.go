@@ -5,6 +5,24 @@
 **/
 package scenario
 
+// ExecutionMode 场景的执行模式(V1 预留,当前只实现 sandbox)
+//   - sandbox      : 后端分配 Docker 容器 + ttyd,前端 iframe 连终端(V1 唯一实现)
+//   - static       : 纯前端题,不需要任何后端运行时(例如改 HTML/CSS 类题)
+//   - wasm-linux   : 前端跑 CheerpX / v86 的 wasm Linux,后端只下发资源包 + check 脚本
+//   - web-container: 前端跑 StackBlitz WebContainer,后端只下发项目 tarball + check 脚本
+//
+// V1 阶段非 sandbox 的分支全部在 AttemptUsecase.Start 早退,返回明确错误。
+// 之所以现在就把字段留出来,是为了避免 V2 接入其它模式时再动数据结构 + 下游一圈。
+const (
+	ExecutionModeSandbox      = "sandbox"
+	ExecutionModeStatic       = "static"
+	ExecutionModeWasmLinux    = "wasm-linux"
+	ExecutionModeWebContainer = "web-container"
+)
+
+// DefaultExecutionMode 给未显式声明 ExecutionMode 的老场景兜底
+const DefaultExecutionMode = ExecutionModeSandbox
+
 // Scenario 场景元信息(硬编码注册表条目)
 type Scenario struct {
 	// 基础
@@ -29,6 +47,9 @@ type Scenario struct {
 	Commands  []string
 	Tags      []string
 
+	// 执行模式(V1 预留,空串按 sandbox 处理;详见 ExecutionMode* 常量)
+	ExecutionMode string
+
 	// 运行配置
 	Runtime RuntimeConfig
 
@@ -40,6 +61,15 @@ type Scenario struct {
 
 	// 元信息
 	IsPremium bool
+}
+
+// EffectiveExecutionMode 返回场景真实生效的执行模式,空串兜底成 sandbox
+// 调用方(usecase / service 层)都应走这个方法,不要直接读字段
+func (s *Scenario) EffectiveExecutionMode() string {
+	if s.ExecutionMode == "" {
+		return DefaultExecutionMode
+	}
+	return s.ExecutionMode
 }
 
 // RuntimeConfig 容器运行时参数
@@ -86,6 +116,7 @@ type Brief struct {
 	TargetPersonas   []string
 	TechStack        []string
 	Tags             []string
+	ExecutionMode    string // 与 Scenario.ExecutionMode 对齐,已兜底过默认值
 	IsPremium        bool
 }
 
@@ -101,6 +132,7 @@ func (s *Scenario) ToBrief() *Brief {
 		TargetPersonas:   s.TargetPersonas,
 		TechStack:        s.TechStack,
 		Tags:             s.Tags,
+		ExecutionMode:    s.EffectiveExecutionMode(),
 		IsPremium:        s.IsPremium,
 	}
 }
