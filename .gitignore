@@ -109,3 +109,5 @@ config.yaml
 eino/
 
 example_landing_page/
+
+.\.claude\worktrees\
