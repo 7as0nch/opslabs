@@ -1,3 +1,11 @@
+# opslabs 本地开发样例配置
+#
+# 安全约定:
+#   - 这个文件是 example 样板,**请勿在此写真实主机名 / 账号 / 密码**。
+#     真实配置请复制到 config.yaml(已在 .gitignore 里)再填本地或私有环境。
+#   - 任何提交到 git 的样例都必须用占位符(example.com / localhost / 空字符串)。
+#   - 线上密钥走环境变量或密管,不进文件。
+
 server:
   http:
     addr: 0.0.0.0:6039
@@ -5,19 +13,23 @@ server:
   grpc:
     addr: 0.0.0.0:9000
     timeout: 1000s
+
 data:
+  # MySQL:本地 docker-compose 起或自己填远程地址
   database:
     driver: mysql
-    source: read_rentianhua:@tcp(rm-.mysql.rds.aliyuncs.com:3306)/rth?parseTime=True&loc=Local
+    source: user:password@tcp(mysql.example.com:3306)/opslabs?parseTime=True&loc=Local
+  # PostgreSQL:可选,不用就整段留空
   pg_database:
-    host: sshjd.aihelper.chat
-    port: 30532
-    user:
+    host: postgres.example.com
+    port: 5432
+    user: ""
     password: ""
-    dbname: pgdb
+    dbname: opslabs
     sslmode: disable
+  # Redis:AttemptStore 必需
   redis:
-    addr: sshjd.aihelper.chat:30379
+    addr: redis.example.com:6379
     read_timeout: 0.2s
     write_timeout: 0.2s
     password: ""
@@ -29,6 +41,7 @@ log:
   director: "./logs"
   encodeLevel: "CapitalColorLevelEncoder"
 
+# 第三方登录(V1 未启用,留空即可)
 auth:
   qq:
     app_id: ""
@@ -37,6 +50,7 @@ auth:
     frontend_redirect: "http://localhost:5173/chat"
     scope: "get_user_info"
 
+# 站内信 / 邮件(选用)
 beta:
   mail:
     host: ""
@@ -46,7 +60,7 @@ beta:
     to: ""
     from: ""
 
-# TODO minio 配置
+# 对象存储(选用,MinIO / 阿里 OSS 等)
 oss:
   access_key: ""
   secret_key: ""

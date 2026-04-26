@@ -1,0 +1,69 @@
+slug: ops-nginx-upstream-fail
+version: "1.0.0"
+title: "Nginx 反代 502 排查"
+summary: "Nginx 返回 502,后端明明活着,找出 upstream 问题"
+description_file: "README.md"
+
+category: ops
+difficulty: 3
+estimated_minutes: 12
+
+target_personas:
+  - ops-engineer
+  - sre
+  - devops-engineer
+  - backend-engineer
+experience_level: mid
+
+tech_stack:
+  - nginx
+  - linux
+skills:
+  - log-analysis
+  - service-management
+  - network-troubleshooting
+  - config-troubleshooting
+  - port-conflict
+commands:
+  - nginx
+  - ss
+  - netstat
+  - tail
+  - curl
+  - systemctl
+tags:
+  - interview-common
+  - real-world
+  - 502-error
+
+runtime:
+  image: opslabs/ops-nginx-upstream-fail:v1
+  memory_mb: 512
+  cpus: 0.5
+  idle_timeout_minutes: 30
+  passed_grace_minutes: 10
+  network_mode: isolated
+
+grading:
+  check_script: /opt/opslabs/check.sh
+  check_timeout_seconds: 10
+  success_output: "OK"
+
+hints:
+  - level: 1
+    content: "502 = nginx 没连上 upstream。先看 nginx error.log,再看 ss 端口"
+  - level: 2
+    content: "tail /var/log/nginx/error.log 会指出 connect refused 到了哪个 ip:port;ss -ltnp 看实际有谁在监听"
+  - level: 3
+    content: "改 /etc/nginx/conf.d/app.conf 的 proxy_pass 端口跟 app 一致(8080),systemctl reload nginx,curl localhost/ 应返 200"
+
+learning_resources: []
+prerequisites:
+  - hello-world
+recommended_next: []
+
+author: official
+created_at: "2026-04-25"
+updated_at: "2026-04-25"
+is_published: true
+is_premium: false

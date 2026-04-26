@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { WebContainer } from '@webcontainer/api'
 import type { FileSystemTree, WebContainerProcess } from '@webcontainer/api'
-import Editor from '@monaco-editor/react'
+import Editor, { type OnMount } from '@monaco-editor/react'
 import { ClientCheckResult } from '../../types'
 
 /**
@@ -199,6 +199,31 @@ const WebContainerRunner = forwardRef<WebContainerRunnerHandle, Props>(
 
     const wcRef = useRef<WebContainer | null>(null)
     const manifestRef = useRef<ProjectManifest | null>(null)
+
+    // Monaco editor / monaco namespace refs
+    //   @monaco-editor/react 的 <Editor> 组件 unmount 时会 dispose editor 实例,
+    //   但不清理 monaco.editor 的 model 池 —— 切场景多次后 text models 会累积,
+    //   每次 ~50-100MB。这里在 WebContainerRunner 卸载时主动清一次所有 models。
+    type EditorMonaco = Parameters<OnMount>[1]
+    type EditorInstance = Parameters<OnMount>[0]
+    const monacoRef = useRef<EditorMonaco | null>(null)
+    const editorRef = useRef<EditorInstance | null>(null)
+    const handleEditorMount = useCallback<OnMount>((editor, monaco) => {
+      editorRef.current = editor
+      monacoRef.current = monaco
+    }, [])
+    useEffect(() => {
+      return () => {
+        const monaco = monacoRef.current
+        if (!monaco) return
+        // 一次性清空 model 池 —— <Editor> 自己管 editor.dispose(),这里只负责 models
+        try {
+          monaco.editor.getModels().forEach((m: { dispose: () => void }) => m.dispose())
+        } catch {
+          // monaco runtime 已被 GC 等极端情况下无视,避免卸载路径抛错
+        }
+      }
+    }, [])
 
     // ------------------------------------------------------------
     // 文件编辑状态
@@ -390,12 +415,37 @@ const WebContainerRunner = forwardRef<WebContainerRunnerHandle, Props>(
     const handleEditorChange = useCallback(
       (val: string | undefined) => {
         if (activeFile == null) return
+        // ★ 关键守卫:Monaco 切换 model(切 path)时也会触发一次 onChange ★
+        //
+        // bug 复现路径(2026-04-25 修复):
+        //   1. activeFile = 'handler.js'(初始入口)
+        //   2. 用户点 README.md → setActiveFile('README.md') → React 排队
+        //   3. <Editor path="README.md" /> 重渲染,Monaco 切换内部 model
+        //   4. 切 model 期间 onDidChangeModelContent 被触发(setValue 类型),
+        //      此时 React state activeFile 还可能是上一帧的旧值 —— 但更糟的是:
+        //      旧的 onChange 闭包绑的是旧 activeFile,新内容是新 model 内容,
+        //      把 README.md 的内容错写进 drafts['handler.js']
+        //   5. 用户切回 handler.js 看到的就是 README.md 的文本
+        //
+        // 修法:Monaco editor 当前真在编辑哪个文件,getModel().uri.path 是权威的。
+        // 跟 activeFile 不一致(包括前导 '/' 差异)就丢弃这次写入。
+        const editor = editorRef.current
+        const modelPath = editor?.getModel()?.uri.path ?? ''
+        // monaco URI 的 path 段一般带前导 '/',activeFile 是相对路径,两边都接受
+        if (modelPath !== activeFile && modelPath !== '/' + activeFile) {
+          return
+        }
         // editableFiles 白名单外的路径直接忽略 onChange,防止 Monaco readOnly 被绕过
         //   (例如未来 Monaco 版本或 DevTools 强改后)脏状态扩散到 wc.fs
         const list = manifestRef.current?.editableFiles
         if (list && !list.includes(activeFile)) return
         const v = val ?? ''
-        setDrafts((prev) => ({ ...prev, [activeFile]: v }))
+        setDrafts((prev) => {
+          // 二重保险:value 跟当前 drafts 完全相等就不要触发 setState 链
+          // (Monaco 偶尔会发"内容没变"的 flush 事件)
+          if (prev[activeFile] === v) return prev
+          return { ...prev, [activeFile]: v }
+        })
         // 只有和 initial 不同才算脏 —— 用户原样输回去也不报脏
         if (v !== initialFiles[activeFile]) {
           markDirty(activeFile)
@@ -693,6 +743,7 @@ const WebContainerRunner = forwardRef<WebContainerRunnerHandle, Props>(
                   language={activeLanguage}
                   value={activeContents}
                   onChange={handleEditorChange}
+                  onMount={handleEditorMount}
                   loading={
                     <div className="w-full h-full grid place-items-center text-xs text-slate-500">
                       加载 Monaco Editor…

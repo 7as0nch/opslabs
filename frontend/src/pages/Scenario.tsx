@@ -20,6 +20,7 @@ import StaticRunner, { StaticRunnerHandle } from '../components/runners/StaticRu
 import WebContainerRunner, {
   WebContainerRunnerHandle,
 } from '../components/runners/WebContainerRunner'
+import RunnerErrorBoundary from '../components/RunnerErrorBoundary'
 import { CheckAttemptReply, ClientCheckResult, ExecutionMode } from '../types'
 import type { ApiError } from '../api/http'
 
@@ -98,6 +99,11 @@ export default function Scenario() {
   // 本地 start 生命周期镜像(参见下方 useEffect 大段注释)
   const [startPhase, setStartPhase] = useState<'idle' | 'pending' | 'done' | 'error'>('idle')
   const [startErr, setStartErr] = useState<Error | null>(null)
+
+  // Runner ErrorBoundary 的 reset key —— ++ 一次强制卸载当前 Runner 组件树
+  // 触发场景:WebContainer / Monaco / iframe 内部抛异常被 ErrorBoundary 捕到,
+  //           用户点"重新加载 Runner"按钮,不 terminate attempt,只重挂渲染树
+  const [runnerResetKey, setRunnerResetKey] = useState(0)
 
   // 进入场景的 start 分派 —— 沿用上一轮 Task #18 的逻辑,结合 startingRef + phase 守卫
   const startingRef = useRef<string | null>(null)
@@ -362,10 +368,19 @@ export default function Scenario() {
 
   // 每次 render 把最新的 runCheck 写进 ref,给 onExpire 等稳定回调使用
   // —— 避免 onExpire 重新 memoize 触发 CountdownBadge 定时器重建
-  runCheckRef.current = runCheck
+  //
+  // 为什么用 useEffect 而不是在 render 阶段直接写 ref:
+  //   Concurrent React 里 render 可能被丢弃重来,render 阶段写的 ref 会"领先"
+  //   于 committed tree,下游回调可能在 UI 还是老状态时读到新 runCheck,
+  //   触发状态不一致。useEffect 在 commit 之后才跑,跟 UI 状态严格对齐。
+  useEffect(() => {
+    runCheckRef.current = runCheck
+  })
 
   const onGiveUp = () => {
     if (!current?.attemptId) return
+    // 放弃也要清 checkInfo,避免下一次进入场景看到上次的判题结果残留
+    setCheckInfo(null)
     terminate.mutate(current.attemptId, {
       onSuccess: (r) => {
         patchCurrent({ status: r.status })
@@ -395,18 +410,38 @@ export default function Scenario() {
         break
       }
       case 'restart': {
-        // 重新来一遍:先 terminate 旧容器 (后端)+ 清 store + 触发 start
+        // 重新来一遍:必须按"先 await terminate → 清 store / checkInfo → fireStart"严格顺序
+        //
+        // 之前是 fire-and-forget terminate + 同步 fireStart 三步并行,Start 可能
+        // 在 terminate 之前到达后端,后端 FindActiveByClientSlug 命中老 attempt
+        // 直接 reuse → 前端拿到上一轮 attempt 的快照,倒计时基于老 startedAt、
+        // Check 因为 status='passed' 报"已提交过"。后端 Start 已加 passed 不 reuse
+        // 的兜底,这里再叠加 await + 清 checkInfo,保证 UX 完全干净。
         if (!slug) return
         const attemptId = a?.attemptId
-        if (attemptId) {
-          terminate.mutate(attemptId)
-        }
+        // 立即清前端状态,让 UI 进入"过渡 / 启动中",避免老 attempt 数据被 deadline
+        // 计算继续读到
+        setCheckInfo(null)
         resetStore()
-        fireStart(slug)
+        const restart = async () => {
+          if (attemptId) {
+            try {
+              await terminate.mutateAsync(attemptId)
+            } catch (e) {
+              // terminate 失败不阻断 —— 后端 Start 拿到 passed/terminated attempt
+              // 也会兜底丢弃重建。只记 console
+              console.warn('[restart] terminate failed, fallback to start', e)
+            }
+          }
+          fireStart(slug)
+        }
+        void restart()
         break
       }
       case 'giveUp': {
         if (a?.attemptId) {
+          // 同样清 checkInfo,放弃后再次进入场景应该看到全新状态
+          setCheckInfo(null)
           terminate.mutate(a.attemptId, {
             onSuccess: (r) => patchCurrent({ status: r.status }),
           })
@@ -557,22 +592,27 @@ export default function Scenario() {
         </aside>
         <section className="min-h-0 flex flex-col overflow-hidden">
           <div className="flex-1 min-h-0 bg-slate-900 overflow-hidden">
-            {renderByExecutionMode({
-              mode: execMode,
-              attemptId: current?.attemptId,
-              terminalUrl: current?.terminalUrl,
-              bundleUrl: current?.bundleUrl,
-              startPending: startPhase === 'pending',
-              startError: startErr,
-              onRetry: () => slug && fireStart(slug),
-              staticRunnerRef,
-              webContainerRunnerRef,
-              scenarioTitle: scenario.title,
-              // 用 summary 的第一句作为 tagline(短简介不适合 splash 长描述)
-              scenarioTagline: firstSentence(scenario.summary),
-              // slug 带入 BootSplash,命中 STAGES_BY_SLUG 时显示场景专属阶段文案
-              scenarioSlug: slug,
-            })}
+            <RunnerErrorBoundary
+              key={runnerResetKey}
+              onReset={() => setRunnerResetKey((k) => k + 1)}
+            >
+              {renderByExecutionMode({
+                mode: execMode,
+                attemptId: current?.attemptId,
+                terminalUrl: current?.terminalUrl,
+                bundleUrl: current?.bundleUrl,
+                startPending: startPhase === 'pending',
+                startError: startErr,
+                onRetry: () => slug && fireStart(slug),
+                staticRunnerRef,
+                webContainerRunnerRef,
+                scenarioTitle: scenario.title,
+                // 用 summary 的第一句作为 tagline(短简介不适合 splash 长描述)
+                scenarioTagline: firstSentence(scenario.summary),
+                // slug 带入 BootSplash,命中 STAGES_BY_SLUG 时显示场景专属阶段文案
+                scenarioSlug: slug,
+              })}
+            </RunnerErrorBoundary>
           </div>
           <ActionBar
             status={current?.status}

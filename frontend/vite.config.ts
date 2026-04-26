@@ -80,4 +80,28 @@ export default defineConfig({
       },
     },
   },
+  // ========================================================================
+  // 代码分割:把 Monaco / WebContainer 这两个大块单独拎出来
+  // ------------------------------------------------------------------------
+  // 问题:@monaco-editor/react 会 CDN 懒加载 monaco-editor 主包,这一份
+  //       就有 ~2MB;@webcontainer/api 虽然小,但跟 WebContainerRunner 绑死,
+  //       也不该跟首屏 Home / Scenario 主 chunk 混在一起。
+  // 不拆的后果:首页进去就下载所有模式的 runner 代码,首屏慢,带宽浪费。
+  // 拆分策略:按 npm 包名命中手动 chunk,这样:
+  //   - Home / Scenario 主 chunk 小(React + react-router + RQ + Zustand)
+  //   - 进 sandbox 场景不会拉 monaco / webcontainer chunk
+  //   - 进 web-container 场景才会拉 monaco + webcontainer chunk
+  // 注:@monaco-editor/react 里 loader 仍走 jsDelivr,本地 chunk 只含薄封装,
+  //     真正的 monaco runtime 还是 CDN 拉;这里拆分的目的是不让 loader/wrapper
+  //     的代码进首屏 chunk,而不是把 monaco-editor 自己打进去。
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          monaco: ['@monaco-editor/react'],
+          webcontainer: ['@webcontainer/api'],
+        },
+      },
+    },
+  },
 })

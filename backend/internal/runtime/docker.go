@@ -164,12 +164,18 @@ func (r *DockerRunner) tryRunOnce(ctx context.Context, spec RunSpec) (*RunResult
 			"--tmpfs", "/run:rw,size=16m,mode=0755",
 		)
 	}
-	if spec.MemoryMB > 0 {
-		args = append(args, "--memory", fmt.Sprintf("%dm", spec.MemoryMB))
+	// 资源上限:场景作者没写就兜底,避免死循环 / 内存泄漏单容器拖垮宿主机
+	// 这些默认值故意偏保守;需要更多资源的场景在 registry meta 里显式抬高
+	memoryMB := spec.MemoryMB
+	if memoryMB <= 0 {
+		memoryMB = 512
 	}
-	if spec.CPUs > 0 {
-		args = append(args, "--cpus", strconv.FormatFloat(spec.CPUs, 'f', 2, 64))
+	args = append(args, "--memory", fmt.Sprintf("%dm", memoryMB))
+	cpus := spec.CPUs
+	if cpus <= 0 {
+		cpus = 1.0
 	}
+	args = append(args, "--cpus", strconv.FormatFloat(cpus, 'f', 2, 64))
 	// NetworkMode:
 	//   "none"             → 完全断网(hello-world 这种不需要任何联网)
 	//   "internet-allowed" → 不指定,走默认 bridge,可连外网
@@ -363,32 +369,52 @@ func (r *DockerRunner) Ping(ctx context.Context, containerID string) error {
 }
 
 // Stop docker rm -f
+//
+// 端口归还策略:
+//   - rm 成功 / "No such container" → 容器已不存在,端口可以 Release 回池
+//   - 其他错误(权限 / daemon 异常 / 超时)→ 容器可能还在,端口其实仍被占;
+//     此时把端口 MarkBad 隔离,避免下一个 Acquire 拿到同一端口 bind 冲突。
+//     代价是损失一个端口,直到进程重启或坏端口被清理 —— 可用 BadCount() 报警。
 func (r *DockerRunner) Stop(ctx context.Context, containerID string) error {
 	if containerID == "" {
 		return nil
 	}
-	// 10s 兜底,不让 Stop 无限卡住
+	// 15s 兜底,不让 Stop 无限卡住
 	stopCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	_, err := r.run(stopCtx, "rm", "-f", containerID)
-	// 无论成功与否,都归还端口 + 清理 map(避免泄漏)
+
+	// 先把 containers map 里的映射摘掉 —— 这只是进程内索引,无论 rm 是否成功
+	// 都没必要再挂着这条 "containerID → port" 记录
 	r.mu.Lock()
-	port, ok := r.containers[containerID]
+	port, hadMapping := r.containers[containerID]
 	delete(r.containers, containerID)
 	r.mu.Unlock()
-	if ok {
-		r.pool.Release(port)
-	}
-	if err != nil {
-		// "No such container" 视为已清理,幂等返回
-		if strings.Contains(err.Error(), "No such container") ||
-			strings.Contains(err.Error(), "not found") {
-			return nil
+
+	if err == nil {
+		if hadMapping {
+			r.pool.Release(port)
 		}
-		return fmt.Errorf("docker rm: %w", err)
+		return nil
 	}
-	return nil
+
+	// "No such container" —— 幂等成功路径,容器已消失,端口照样 Release
+	low := strings.ToLower(err.Error())
+	if strings.Contains(low, "no such container") ||
+		strings.Contains(low, "not found") {
+		if hadMapping {
+			r.pool.Release(port)
+		}
+		return nil
+	}
+
+	// 真实错误:rm 失败,容器状态未知 —— 不能让端口回池,否则下一个 Acquire 拿到
+	// 同一端口会 bind 冲突。MarkBad 把它隔离,用 BadCount 指标观察
+	if hadMapping {
+		r.pool.MarkBad(port)
+	}
+	return fmt.Errorf("docker rm: %w", err)
 }
 
 // InUsePorts 当前占用端口数,监控/测试用

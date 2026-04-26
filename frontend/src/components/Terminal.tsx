@@ -21,45 +21,79 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 type ProbeState = 'idle' | 'probing' | 'ok' | 'fail'
 
+// 指数退避参数 —— 容器通常 2-5s 起来,给到第 5 次重试累计等 ~7.5s
+// 比单次 3.5s 宽容很多,但又不让用户面对"正在连接…"半分钟不动
+const MAX_PROBE_RETRIES = 5
+const PROBE_BASE_DELAY_MS = 500
+const PROBE_MAX_DELAY_MS = 3000
+
 export default function Terminal({ src }: { src: string }) {
   const [state, setState] = useState<ProbeState>('idle')
   const [attempt, setAttempt] = useState(0) // 用来强制刷新 iframe
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const retryCountRef = useRef(0)
+
+  const cancelTimer = () => {
+    if (timer.current) {
+      clearTimeout(timer.current)
+      timer.current = null
+    }
+  }
 
   // 走同源反代后 fetch 能正常拿 status,改为"HEAD 成功即放行、失败给兜底"
   // 注:反代对非 WS 请求返回 ttyd 的首页 200,对已过期 attempt 我们会返 404/410,
   // probe 据此区分"后端反代就绪 / attempt 已失效"两种场景
-  const probe = useCallback(async () => {
-    setState('probing')
-    const ctl = new AbortController()
-    timer.current && clearTimeout(timer.current)
-    timer.current = setTimeout(() => ctl.abort(), 3500)
-    try {
-      const resp = await fetch(src, { signal: ctl.signal, cache: 'no-store' })
-      // 2xx 都放行;反代返回的 404/410/502 都走 fail 分支给用户提示
-      if (resp.ok) {
-        setState('ok')
-      } else {
-        setState('fail')
+  //
+  // 2026-04-24 加固:指数退避重试
+  //   容器冷启动 2-5s,之前单次 3.5s 超时就 fail,用户被迫手点"重试"3-5 次。
+  //   改成前 5 次失败自动退避重试(500→1000→2000→3000→3000 ms + 抖动),
+  //   全部失败后才进 fail UI。用户手动点"重试连接"会清零计数器重新来一轮。
+  const probe = useCallback(
+    async (resetCount = false) => {
+      if (resetCount) retryCountRef.current = 0
+      setState('probing')
+      const ctl = new AbortController()
+      cancelTimer()
+      timer.current = setTimeout(() => ctl.abort(), 3500)
+      let ok = false
+      try {
+        const resp = await fetch(src, { signal: ctl.signal, cache: 'no-store' })
+        ok = resp.ok
+      } catch {
+        ok = false
+      } finally {
+        cancelTimer()
       }
-    } catch {
+      if (ok) {
+        retryCountRef.current = 0
+        setState('ok')
+        return
+      }
+      if (retryCountRef.current < MAX_PROBE_RETRIES) {
+        const attemptN = retryCountRef.current
+        retryCountRef.current += 1
+        const base = Math.min(PROBE_BASE_DELAY_MS * 2 ** attemptN, PROBE_MAX_DELAY_MS)
+        // ±25% 抖动,避免并发多实例同步重试打在反代同一个 tick
+        const jitter = base * (0.75 + Math.random() * 0.5)
+        timer.current = setTimeout(() => void probe(false), jitter)
+        return
+      }
       setState('fail')
-    } finally {
-      timer.current && clearTimeout(timer.current)
-    }
-  }, [src])
+    },
+    [src],
+  )
 
   useEffect(() => {
     if (!src) return
-    void probe()
+    void probe(true)
     return () => {
-      timer.current && clearTimeout(timer.current)
+      cancelTimer()
     }
   }, [src, probe])
 
   const onRetry = () => {
     setAttempt((x) => x + 1)
-    void probe()
+    void probe(true)
   }
 
   if (state === 'probing' || state === 'idle') {

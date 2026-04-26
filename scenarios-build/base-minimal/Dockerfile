@@ -16,6 +16,12 @@ FROM alpine:3.19
 
 ENV LANG=C.UTF-8
 
+# 换 apk 源 —— dl-cdn.alpinelinux.org 国内偶发拉不动,阿里云镜像稳。
+# 走 https 是因为 alpine:3.19 默认带 ca-certificates-bundle(只是没装外暴露的 ca-certificates 包)。
+# 跟 base/Dockerfile 一样开 ARG,海外构建可以 --build-arg APK_MIRROR=dl-cdn.alpinelinux.org 切回官方。
+ARG APK_MIRROR=mirrors.aliyun.com
+RUN sed -i "s|https\?://dl-cdn.alpinelinux.org/alpine|https://${APK_MIRROR}/alpine|g" /etc/apk/repositories
+
 # ttyd 在 community 仓,3.17+ 都有;bash/coreutils 保证 shebang 一致;
 # tini 做 init 进程防僵尸;su-exec 用来在 entrypoint 里从 root 切 player,比 su/gosu 都小
 RUN apk add --no-cache \

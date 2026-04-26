@@ -1,0 +1,79 @@
+#!/bin/bash
+# mini systemctl wrapper —— 容器里没 systemd,这层薄壳让 player 的肌肉记忆能用
+#
+# 支持子命令(只覆盖排障常用的几条):
+#   systemctl status  app
+#   systemctl start   app
+#   systemctl stop    app
+#   systemctl restart app
+#
+# 仅识别 "app" 这一个 unit;其它 unit 一律返回未知错误。
+set -e
+
+PIDFILE=/var/run/app.pid
+LOGFILE=/var/log/app/error.log
+ROOT_OK_USERS=(player root)
+
+unit="${2:-}"
+cmd="${1:-status}"
+
+if [ "$unit" != "app" ] && [ -n "$unit" ]; then
+    echo "Failed to ${cmd} ${unit}.service: Unit ${unit}.service not found." >&2
+    exit 5
+fi
+
+is_running() {
+    [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null
+}
+
+case "$cmd" in
+    status)
+        if is_running; then
+            echo "● app.service - opslabs user-api"
+            echo "   Active: active (running) since boot"
+            echo "   Main PID: $(cat "$PIDFILE")"
+            exit 0
+        else
+            echo "● app.service - opslabs user-api"
+            echo "   Active: inactive (dead)"
+            exit 3
+        fi
+        ;;
+    start)
+        if is_running; then
+            echo "app.service is already active"
+            exit 0
+        fi
+        # 启动 —— 重定向 stdout/stderr 进 LOGFILE 让 journalctl 能看
+        mkdir -p /var/log/app /var/run
+        nohup python3 /opt/app/app.py >>"$LOGFILE" 2>&1 </dev/null &
+        echo $! > "$PIDFILE"
+        sleep 0.4
+        if is_running; then
+            echo "Started app.service"
+            exit 0
+        fi
+        echo "Job for app.service failed because the control process exited." >&2
+        echo "See: journalctl -u app -n 30" >&2
+        exit 1
+        ;;
+    stop)
+        if is_running; then
+            kill "$(cat "$PIDFILE")" 2>/dev/null || true
+            sleep 0.3
+            kill -9 "$(cat "$PIDFILE")" 2>/dev/null || true
+        fi
+        rm -f "$PIDFILE"
+        echo "Stopped app.service"
+        exit 0
+        ;;
+    restart)
+        "$0" stop app >/dev/null 2>&1 || true
+        exec "$0" start app
+        ;;
+    *)
+        echo "mini-systemctl: unsupported command '$cmd'" >&2
+        echo "supported: status / start / stop / restart" >&2
+        exit 64
+        ;;
+esac

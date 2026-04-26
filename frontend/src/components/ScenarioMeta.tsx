@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ScenarioDetail } from '../types'
 import { useAttemptStore } from '../store/useAttemptStore'
+import FeedbackPanel from './FeedbackPanel'
 
 // 左侧:元信息 + 任务详情 + 三档提示
 // Week 1 后端不下发 hint.content,这里点"解锁"只改前端 state
@@ -82,6 +83,8 @@ export default function ScenarioMeta({ scenario }: { scenario: ScenarioDetail })
           </ul>
         </section>
       ) : null}
+
+      <FeedbackPanel scenarioSlug={scenario.slug} />
     </div>
   )
 }

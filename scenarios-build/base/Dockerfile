@@ -23,6 +23,20 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
 
+# 换 apt 源 —— archive.ubuntu.com / security.ubuntu.com 在国内访问极不稳,
+# 第一次构建经常卡 "Connection failed [IP: 91.189.91.81]"。换阿里云镜像后所有
+# FROM opslabs/base:v1 的场景镜像 apt 都直接命中国内 CDN。
+#
+# 用 http 不用 https:ubuntu base 默认没装 ca-certificates,https 反而会失败;
+# apt 自己有 gpg 签名校验,不依赖 TLS。
+#
+# 用 ARG APT_MIRROR 让海外/CI 环境能 --build-arg APT_MIRROR=archive.ubuntu.com 切回官方源。
+ARG APT_MIRROR=mirrors.aliyun.com
+RUN sed -i \
+        -e "s|http://archive.ubuntu.com/ubuntu/|http://${APT_MIRROR}/ubuntu/|g" \
+        -e "s|http://security.ubuntu.com/ubuntu/|http://${APT_MIRROR}/ubuntu/|g" \
+        /etc/apt/sources.list
+
 RUN apt-get update && apt-get install -y \
     curl wget vim nano less \
     procps net-tools iputils-ping dnsutils lsof iproute2 \

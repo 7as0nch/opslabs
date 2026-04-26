@@ -140,11 +140,23 @@ func (uc *AttemptUsecase) Start(ctx context.Context, slug string) (*Attempt, err
 	if ok {
 		mode := sc.EffectiveExecutionMode()
 		reusable := true
-		// sandbox 模式下做两层校验:
+		// 状态校验:
+		//   passed 不能 reuse —— Start 表示用户明确"重新做一次",不是回到通关页。
+		//   findActiveByOwnerKey 把 running + passed 都视为 owner 索引可见的 attempt,
+		//   这里再过一道:Start 只复用 running 态。
+		//   bug 复现路径(2026-04-25 修复):用户提交成功 → status=passed → 在 PassModal
+		//   选 restart → 前端 fireStart → 后端命中 passed attempt 并直接返回 → 前端
+		//   倒计时还是上次的 startedAt、Check 因为 !IsActive() 报"已提交过"。
+		if existing.Status == StatusPassed {
+			uc.log.Info("found passed attempt for same client+slug, will recreate (no reuse)",
+				zap.Int64("id", existing.ID), zap.String("slug", slug))
+			reusable = false
+		}
+		// sandbox 模式下再做两层校验:
 		//   1. HostPort > 0           —— mock runner 给 0,过滤掉;正常 docker 一定非零
 		//   2. runner.Ping(container) —— 真实探活,防止 docker rm 后 store 还记着导致
 		//      Terminal iframe 连 ttyd 连不上(dial tcp 127.0.0.1:xxxxx: refused)
-		if mode == scenario.ExecutionModeSandbox {
+		if reusable && mode == scenario.ExecutionModeSandbox {
 			if existing.HostPort <= 0 {
 				uc.log.Warn("sandbox existing attempt has no host port, will recreate",
 					zap.Int64("id", existing.ID), zap.String("slug", slug))
@@ -183,8 +195,23 @@ func (uc *AttemptUsecase) Start(ctx context.Context, slug string) (*Attempt, err
 			uc.log.Warn("store Delete stale attempt failed",
 				zap.Error(err), zap.Int64("id", existing.ID))
 		}
+		// 老 sandbox 容器还活着的话顺手停掉(常见于 passed 状态没等 GC 就 restart),
+		// 否则旧容器会一直挂着占端口,直到 30min idle 才被清,期间 BadCount 可能上升。
+		// mock runtime 的 ContainerID 是 "mock-..." 前缀,Stop 也是 no-op,无副作用。
+		if existing.ContainerID != "" {
+			stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if stopErr := uc.runner.Stop(stopCtx, existing.ContainerID); stopErr != nil {
+				uc.log.Warn("stop stale container on restart failed",
+					zap.Error(stopErr),
+					zap.Int64("id", existing.ID),
+					zap.String("container_id", existing.ContainerID))
+			}
+			stopCancel()
+		}
 		existing.MarkTerminated(time.Now())
-		deadCtx, deadCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		// 回滚路径统一 5s 硬超时 —— 父 ctx 可能已取消,这里走独立背景 ctx,
+		// 但必须带截止时间防止 DB / Docker daemon 异常时把请求线程卡死
+		deadCtx, deadCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		if err := uc.repo.Update(deadCtx, existing); err != nil {
 			uc.log.Warn("mark stale attempt terminated failed",
 				zap.Error(err),
@@ -240,13 +267,17 @@ func (uc *AttemptUsecase) Start(ctx context.Context, slug string) (*Attempt, err
 		uc.log.Error("store Put after start failed, rolling back container",
 			zap.Error(err), zap.Int64("id", a.ID), zap.String("slug", slug))
 		if a.ContainerID != "" {
-			if stopErr := uc.runner.Stop(context.Background(), a.ContainerID); stopErr != nil {
+			// Docker daemon 异常时 rm 可能 hang 住,必须带截止时间 —— 宁可泄一个容器,
+			// 也不让请求线程卡死等 daemon 回来
+			stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if stopErr := uc.runner.Stop(stopCtx, a.ContainerID); stopErr != nil {
 				uc.log.Error("rollback stop after store.Put failure",
 					zap.Error(stopErr), zap.String("container_id", a.ContainerID))
 			}
+			stopCancel()
 		}
 		a.MarkTerminated(time.Now())
-		deadCtx, deadCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		deadCtx, deadCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		if uerr := uc.repo.Update(deadCtx, a); uerr != nil {
 			uc.log.Warn("mark rolled-back attempt terminated failed",
 				zap.Error(uerr), zap.Int64("id", a.ID))
@@ -294,12 +325,15 @@ func (uc *AttemptUsecase) startSandbox(ctx context.Context, a *Attempt, slug str
 	createCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	if err := uc.repo.Create(createCtx, a); err != nil {
-		// 持久化失败:停掉容器避免泄露(用背景 ctx,保证不被父 ctx 超时牵连)
-		if stopErr := uc.runner.Stop(context.Background(), res.ContainerID); stopErr != nil {
+		// 持久化失败:停掉容器避免泄露 —— 背景 ctx 防止被父 ctx 超时牵连,
+		// 但必须额外带 5s 硬截止,Docker daemon 异常时不至于卡死调用链
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if stopErr := uc.runner.Stop(stopCtx, res.ContainerID); stopErr != nil {
 			uc.log.Error("rollback stop failed",
 				zap.Error(stopErr),
 				zap.String("container_id", res.ContainerID))
 		}
+		stopCancel()
 		uc.log.Error("repo create failed",
 			zap.Error(err),
 			zap.Int64("id", a.ID),
@@ -488,14 +522,24 @@ func (uc *AttemptUsecase) Check(ctx context.Context, id int64, client *ClientChe
 		a.MarkPassed(now)
 	}
 
-	if err := uc.repo.Update(ctx, a); err != nil {
-		uc.log.Error("update attempt after check failed", zap.Error(err), zap.Int64("id", id))
-		// 不阻塞用户,返回 check 结果;下次 Check/GC 会再次尝试写入
+	// post-check 写入路径:判题结果已经算好,写入失败不应阻塞用户拿到结果
+	//   - DB Update 给 2s:远程 PG 短抖不至于让 Check 跟着慢
+	//   - Redis UpdateStatus 给 500ms:缓存层比 DB 更敏感
+	// 两处都用 background ctx,避免请求 ctx 提前 cancel 把本该"尽力落库"的写入误杀
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	if err := uc.repo.Update(dbCtx, a); err != nil {
+		uc.log.Error("update attempt after check failed",
+			zap.Error(err), zap.Int64("id", id))
+		// 不阻塞用户,返回 check 结果;下次 Check / GC 会再次尝试写入
 	}
-	// 同步回 Redis;失败只告警,不影响本次 check 结果返回
-	if _, err := uc.store.UpdateStatus(ctx, a); err != nil {
-		uc.log.Warn("store UpdateStatus after check failed", zap.Error(err), zap.Int64("id", id))
+	dbCancel()
+
+	storeCtx, storeCancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	if _, err := uc.store.UpdateStatus(storeCtx, a); err != nil {
+		uc.log.Warn("store UpdateStatus after check failed",
+			zap.Error(err), zap.Int64("id", id))
 	}
+	storeCancel()
 
 	result.Attempt = a
 	return result, nil

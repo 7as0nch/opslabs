@@ -1,0 +1,47 @@
+#!/bin/bash
+# mini journalctl wrapper —— 把 journalctl -u app 等价成 tail /var/log/app/error.log
+#
+# 支持的常见组合(其它参数会原样打印日志):
+#   journalctl -u app
+#   journalctl -u app -n 30
+#   journalctl -u app -f       (跟 tail -f 一致)
+LOGFILE=/var/log/app/error.log
+
+if [ ! -f "$LOGFILE" ]; then
+    echo "-- No entries --"
+    exit 0
+fi
+
+unit=""
+lines=200
+follow=false
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -u|--unit)
+            unit="$2"
+            shift 2
+            ;;
+        -n|--lines)
+            lines="$2"
+            shift 2
+            ;;
+        -f|--follow)
+            follow=true
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+if [ -n "$unit" ] && [ "$unit" != "app" ]; then
+    echo "-- No entries --"
+    exit 0
+fi
+
+if [ "$follow" = "true" ]; then
+    exec tail -n "$lines" -f "$LOGFILE"
+fi
+exec tail -n "$lines" "$LOGFILE"

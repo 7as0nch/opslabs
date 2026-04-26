@@ -116,6 +116,10 @@ func NewHTTPServer(c *conf.Server,
 	// 再由这个兜底 path 接管剩余的 /v1/attempts/{id}/heartbeat
 	srv.HandleFunc("/v1/attempts/{id}/heartbeat", attemptServ.HeartbeatAttemptHandler)
 
+	// 用户反馈端点:纯 log.Info,不走 DB,V1 内测阶段足够用(详见 feedback.go)
+	// 不走 proto / 不走 Kratos middleware 链,handler 自己校验 + 返 JSON
+	srv.HandleFunc("/v1/feedback", opslabs.FeedbackHandler(zlog))
+
 	// 非 sandbox 执行模式的静态资源下发 handler
 	// 必须注册在 RegisterScenarioHTTPServer 之后,让 gorilla/mux 的 RPC 精确路由先匹配
 	// (/v1/scenarios 和 /v1/scenarios/{slug} 会先被 RPC 路由命中;

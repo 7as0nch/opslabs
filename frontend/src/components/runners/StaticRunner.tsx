@@ -81,11 +81,22 @@ const StaticRunner = forwardRef<StaticRunnerHandle, Props>(function StaticRunner
   // postMessage 监听
   // 用 window 级监听是因为 bundle iframe 的 contentWindow 在 srcdoc 内跑,
   // 直接给 iframe.contentWindow addEventListener 会被 sandbox 隔开
+  //
+  // 严格校验(2026-04-24 加固):
+  //   - e.origin 必须 === 当前页面 origin
+  //     bundle 走 /v1/scenarios/.../bundle/ 同源下发,dev 下 vite proxy、prod 下同域
+  //     反代,都保证 iframe origin 等于父页 origin。第三方窗口 / 广告 / iframe 误发
+  //     的 postMessage 会在这一步被拒绝,无法冒充 bundle 伪造 passed:true 绕判题。
+  //   - e.data 必须是对象 + type 必须是 string
+  //   - opslabs:check-result 的 passed 必须是严格 boolean,不接受 truthy 绕过
   useEffect(() => {
+    const expectedOrigin = window.location.origin
     const onMsg = (e: MessageEvent) => {
-      // 宽松校验:只认自家协议 type,不校验 origin 因为 bundle 跟后端同源
+      if (e.origin !== expectedOrigin) return
       if (!e.data || typeof e.data !== 'object') return
-      const { type } = e.data as { type?: string }
+      const data = e.data as Record<string, unknown>
+      if (typeof data.type !== 'string') return
+      const type = data.type
       if (type === 'opslabs:ready') {
         setReady(true)
         return
@@ -95,11 +106,15 @@ const StaticRunner = forwardRef<StaticRunnerHandle, Props>(function StaticRunner
         if (!p) return // 迟到消息,忽略
         clearTimeout(p.timer)
         pendingRef.current = null
+        if (typeof data.passed !== 'boolean') {
+          p.reject(new Error('bundle returned invalid check-result: passed must be boolean'))
+          return
+        }
         p.resolve({
-          passed: !!e.data.passed,
-          exitCode: typeof e.data.exitCode === 'number' ? e.data.exitCode : 0,
-          stdout: typeof e.data.stdout === 'string' ? e.data.stdout : '',
-          stderr: typeof e.data.stderr === 'string' ? e.data.stderr : '',
+          passed: data.passed,
+          exitCode: typeof data.exitCode === 'number' ? data.exitCode : 0,
+          stdout: typeof data.stdout === 'string' ? data.stdout : '',
+          stderr: typeof data.stderr === 'string' ? data.stderr : '',
         })
       }
     }

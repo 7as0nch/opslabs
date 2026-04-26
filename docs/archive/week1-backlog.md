@@ -4,7 +4,11 @@
  * @Description: Week 1 骨架跑通的可落地 backlog，按"先打通骨架（mock runtime）→ 再接 Docker → 再上前端"的三段式推进。
 -->
 
-# opslabs · Week 1 Backlog（可落地版）
+> **⚠️ 归档声明**:本文档归档于 `docs/archive/`,属于 **历史参考**。
+> 项目当前进度与规划请看仓库根的 [PLAN.md](../../PLAN.md)。
+> 本文里的大部分 Phase A / B / C 任务已落地或已被重新定义。
+
+# opslabs · Week 1 Backlog(可落地版)
 
 > 基于 `README.md`、`draft.md`、`backend/internal/scenarios/{README,draft,template}.md` 整合。
 >

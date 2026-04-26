@@ -1,0 +1,111 @@
+#!/bin/bash
+# mini systemctl wrapper —— 这个场景里管理 app + nginx 两个 unit
+set -e
+
+PIDFILE_APP=/var/run/app.pid
+PIDFILE_NGINX=/var/run/nginx.pid
+LOG_APP=/var/log/app/error.log
+
+cmd="${1:-status}"
+unit="${2:-}"
+
+case "$unit" in
+    app|nginx)
+        ;;
+    "")
+        echo "mini-systemctl: missing unit (try: app, nginx)" >&2
+        exit 64
+        ;;
+    *)
+        echo "Failed to ${cmd} ${unit}.service: Unit ${unit}.service not found." >&2
+        exit 5
+        ;;
+esac
+
+is_running() {
+    local pf="$1"
+    [ -f "$pf" ] && kill -0 "$(cat "$pf")" 2>/dev/null
+}
+
+run_status() {
+    local pf="$1" unit="$2"
+    if is_running "$pf"; then
+        echo "● ${unit}.service - opslabs ${unit}"
+        echo "   Active: active (running) since boot"
+        echo "   Main PID: $(cat "$pf")"
+        exit 0
+    fi
+    echo "● ${unit}.service - opslabs ${unit}"
+    echo "   Active: inactive (dead)"
+    exit 3
+}
+
+start_app() {
+    if is_running "$PIDFILE_APP"; then
+        echo "app.service is already active"
+        return 0
+    fi
+    nohup bash /opt/app/run.sh >>"$LOG_APP" 2>&1 </dev/null &
+    echo $! > "$PIDFILE_APP"
+    sleep 0.4
+    is_running "$PIDFILE_APP" || { echo "Job for app.service failed" >&2; return 1; }
+    echo "Started app.service"
+}
+
+stop_app() {
+    if is_running "$PIDFILE_APP"; then
+        kill "$(cat "$PIDFILE_APP")" 2>/dev/null || true
+        sleep 0.2
+        kill -9 "$(cat "$PIDFILE_APP")" 2>/dev/null || true
+    fi
+    rm -f "$PIDFILE_APP"
+    # run.sh 通常还会拉起 python 子进程,顺手清干净避免端口残留
+    pkill -f 'python3 /opt/app/server.py' 2>/dev/null || true
+    echo "Stopped app.service"
+}
+
+start_nginx() {
+    if is_running "$PIDFILE_NGINX"; then
+        echo "nginx.service is already active"
+        return 0
+    fi
+    # 用 player 拉起 nginx daemon —— Dockerfile 已把 nginx user 改成 player
+    nginx
+    echo "Started nginx.service"
+}
+
+stop_nginx() {
+    if is_running "$PIDFILE_NGINX"; then
+        nginx -s quit 2>/dev/null || true
+        sleep 0.3
+    fi
+    rm -f "$PIDFILE_NGINX"
+    echo "Stopped nginx.service"
+}
+
+case "$cmd" in
+    status)
+        if [ "$unit" = "app" ]; then run_status "$PIDFILE_APP" "app"; fi
+        run_status "$PIDFILE_NGINX" "nginx"
+        ;;
+    start)
+        if [ "$unit" = "app" ]; then start_app; else start_nginx; fi
+        ;;
+    stop)
+        if [ "$unit" = "app" ]; then stop_app; else stop_nginx; fi
+        ;;
+    restart)
+        if [ "$unit" = "app" ]; then stop_app >/dev/null 2>&1; exec "$0" start app; fi
+        stop_nginx >/dev/null 2>&1
+        exec "$0" start nginx
+        ;;
+    reload)
+        if [ "$unit" = "nginx" ]; then nginx -s reload; echo "Reloaded nginx.service"; exit 0; fi
+        echo "reload only supported for nginx" >&2
+        exit 64
+        ;;
+    *)
+        echo "mini-systemctl: unsupported command '$cmd'" >&2
+        exit 64
+        ;;
+esac

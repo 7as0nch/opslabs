@@ -11,7 +11,8 @@ import { useEffect, useRef, useState } from 'react'
  *   - deadline 为空 返回 0
  *   - 一秒一次 setState,组件重渲染成本可控
  *   - 到期自动触发 onExpire(保证只触发一次)
- *   - tab 切到后台 React 仍会更新 state,回来显示无需手工刷新
+ *   - tab 切到后台浏览器会把 setInterval 节流,切回前台时监听
+ *     visibilitychange 立即重算一次,避免显示跟真实墙钟漂移几秒
  *
  * allowOvertime=false(默认兼容老行为):
  *   - 过期后返回 0,内部 clearInterval 停掉定时器
@@ -36,7 +37,8 @@ export function useCountdown(
     // 立即同步一次,避免从非目标 deadline 切换来的陈旧 state
     setRemaining(calcRemaining(deadline, allowOvertime))
     if (!deadline) return
-    const id = window.setInterval(() => {
+
+    const tick = () => {
       const r = calcRemaining(deadline, allowOvertime)
       setRemaining(r)
       if (r <= 0 && !firedRef.current) {
@@ -48,8 +50,21 @@ export function useCountdown(
         }
         // allowOvertime=true 时继续 tick,让 badge 展示累计超时
       }
-    }, 1000)
-    return () => window.clearInterval(id)
+    }
+    const id = window.setInterval(tick, 1000)
+
+    // 标签页切到后台时浏览器会把 setInterval 节流到 ~1/min,回到前台后 tick
+    // 跟真实墙钟可以差出几秒 —— 用户会看到"超时 -5s → 超时 +3s" 这类跳跃。
+    // visibilitychange 触发时立即按 deadline 重算一次,把 state 对齐回真实时间。
+    const onVis = () => {
+      if (document.visibilityState === 'visible') tick()
+    }
+    document.addEventListener('visibilitychange', onVis)
+
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVis)
+    }
     // onExpire 故意不进依赖 —— 调用方一般传匿名函数,每次 re-render 都是新引用,
     // 进依赖会导致每秒清定时器再建一遍。改成 ref 写入也可,但那种做法对读者更不直觉,
     // 这里显式地用 eslint-disable 注明意图,更清楚。

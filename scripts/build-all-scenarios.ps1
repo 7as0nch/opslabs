@@ -1,13 +1,16 @@
 # Windows 版场景镜像构建(等价于 scripts/build-all-scenarios.sh)
 # 依赖:Docker Desktop 已启动
 # 用法:
-#   ./scripts/build-all-scenarios.ps1                   # 全部构建
+#   ./scripts/build-all-scenarios.ps1                   # 扫 scenarios/ 下所有带 Dockerfile 的目录
 #   ./scripts/build-all-scenarios.ps1 -Slug hello-world # 只构建指定场景
 #
 # 构建顺序:
 #   1) scenarios-build/<name>/Dockerfile  → opslabs/<name>:v1(所有基础镜像)
 #      (目录名就是 tag,新增 base 只要在 scenarios-build/ 下加目录即可)
-#   2) scenarios/<slug>/Dockerfile        → opslabs/<slug>:v1(场景镜像)
+#   2) scenarios/<slug>/Dockerfile        → opslabs/<slug>:v1(场景镜像,自动扫描)
+#
+# 2026-04-24:原先 $Scenarios 是硬编码数组,加场景要动脚本;现改为扫 scenarios/
+#             自动发现 Dockerfile,新增场景只要建目录就行,脚本无需改动。
 param(
     [string]$Slug = ''
 )
@@ -28,15 +31,23 @@ if (Test-Path $BasesDir) {
     }
 }
 
-# -------- 2. 构建场景镜像 --------
-# 当前可用场景;新增场景追加到这里
-$Scenarios = @(
-    'hello-world'
-    # 'frontend-devserver-down'   # Week 2
-    # 'backend-api-500'           # Week 2
-    # 'ops-nginx-upstream-fail'   # Week 2
-)
-if ($Slug) { $Scenarios = @($Slug) }
+# -------- 2. 构建场景镜像(自动扫描 scenarios/*/Dockerfile) --------
+$ScenariosDir = Join-Path $BaseDir 'scenarios'
+if ($Slug) {
+    $Scenarios = @($Slug)
+} elseif (Test-Path $ScenariosDir) {
+    $Scenarios = Get-ChildItem -Path $ScenariosDir -Directory |
+        Where-Object { Test-Path (Join-Path $_.FullName 'Dockerfile') } |
+        ForEach-Object { $_.Name }
+} else {
+    $Scenarios = @()
+}
+
+if (-not $Scenarios -or $Scenarios.Count -eq 0) {
+    Write-Host '==> no scenarios with Dockerfile found under scenarios/'
+    Write-Host '    (non-sandbox 模式场景如 static / web-container / wasm-linux 不需要构建镜像)'
+    exit 0
+}
 
 foreach ($s in $Scenarios) {
     $df = Join-Path $BaseDir "scenarios/$s/Dockerfile"

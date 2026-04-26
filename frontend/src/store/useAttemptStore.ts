@@ -21,6 +21,76 @@ interface State {
   reset: () => void
 }
 
+// safeLocalStorage 给 createJSONStorage 用的容错壳
+//   - 隐身模式 / 第三方 cookie 禁用 / 存储满 / 文件协议等场景下 localStorage 会抛,
+//     如果不 try/catch,任何 set/patch 都会炸到整个 React 组件树
+//   - 读失败视为"没存过",返回 null;写失败只 console.warn,不打断渲染
+//   - 一次探测后对 MissingStorage 状态常驻,避免每次操作都重复抛异常
+const safeLocalStorage = (): Storage => {
+  const noop: Storage = {
+    length: 0,
+    clear: () => {},
+    getItem: () => null,
+    key: () => null,
+    removeItem: () => {},
+    setItem: () => {},
+  }
+  let real: Storage | null = null
+  try {
+    real = typeof window !== 'undefined' ? window.localStorage : null
+  } catch {
+    real = null
+  }
+  if (!real) return noop
+  return {
+    get length() {
+      try {
+        return real!.length
+      } catch {
+        return 0
+      }
+    },
+    clear: () => {
+      try {
+        real!.clear()
+      } catch {
+        /* ignored */
+      }
+    },
+    getItem: (k) => {
+      try {
+        return real!.getItem(k)
+      } catch {
+        return null
+      }
+    },
+    key: (i) => {
+      try {
+        return real!.key(i)
+      } catch {
+        return null
+      }
+    },
+    removeItem: (k) => {
+      try {
+        real!.removeItem(k)
+      } catch {
+        /* ignored */
+      }
+    },
+    setItem: (k, v) => {
+      try {
+        real!.setItem(k, v)
+      } catch (e) {
+        // 最常见:QuotaExceededError。用 warn 而不是 error,避免把正常的存储压力
+        // 事件冒泡成"看起来像 bug"的日志。用户刷新页面时会丢掉 attempt 复用,
+        // 但不会白屏
+        console.warn('[useAttemptStore] localStorage.setItem failed, state not persisted', e)
+      }
+    },
+  }
+}
+
 export const useAttemptStore = create<State>()(
   persist(
     (set) => ({
@@ -33,7 +103,7 @@ export const useAttemptStore = create<State>()(
     }),
     {
       name: 'opslabs-attempt',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => safeLocalStorage()),
       partialize: (s) => ({ current: s.current, hintLevel: s.hintLevel }) as State,
       version: 1,
     },
