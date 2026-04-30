@@ -92,9 +92,9 @@ registry 里声明 7 个场景。以下是 `2026-04-25` 的实际状态:
 | slug | 模式 | registry | 磁盘资源 | bundle | 镜像构建 | 可端到端通关 |
 |---|---|---|---|---|---|---|
 | hello-world | sandbox | ✅ | ✅ `scenarios/hello-world/` | - | ✅ | ✅ |
-| frontend-devserver-down | sandbox | ✅ | ✅ `scenarios/frontend-devserver-down/`(Vite + React 脚手架 + tests) | - | ⚠️ 待 build | ⚠️ 镜像构建后即可 |
-| backend-api-500 | sandbox | ✅ | ✅ `scenarios/backend-api-500/`(Flask + mini-systemctl/journalctl + tests) | - | ⚠️ 待 build | ⚠️ 镜像构建后即可 |
-| ops-nginx-upstream-fail | sandbox | ✅ | ✅ `scenarios/ops-nginx-upstream-fail/`(Nginx + python http.server + tests) | - | ⚠️ 待 build | ⚠️ 镜像构建后即可 |
+| frontend-devserver-down | sandbox | ✅ | ✅ `scenarios/frontend-devserver-down/`(Vite + React 脚手架 + tests) | - | 📦 资源就绪,需 `scripts/build-all-scenarios` | 跑一次 build 即可 |
+| backend-api-500 | sandbox | ✅ | ✅ `scenarios/backend-api-500/`(Flask + mini-systemctl/journalctl + tests) | - | 📦 资源就绪,需 `scripts/build-all-scenarios` | 跑一次 build 即可 |
+| ops-nginx-upstream-fail | sandbox | ✅ | ✅ `scenarios/ops-nginx-upstream-fail/`(Nginx + python http.server + tests) | - | 📦 资源就绪,需 `scripts/build-all-scenarios` | 跑一次 build 即可 |
 | css-flex-center | static | ✅ | - | ✅ `backend/internal/scenario/bundles/css-flex-center/`(embed) | n/a | ✅ |
 | webcontainer-node-hello | web-container | ✅ | - | ✅ `bundles/webcontainer-node-hello/project.json` | n/a | ✅ |
 | wasm-linux-hello | wasm-linux | ✅ | - | ✅ `bundles/wasm-linux-hello/`(v86 + BusyBox) | n/a | ✅ |

@@ -82,9 +82,9 @@ func scenarioHelloWorld() *Scenario {
 	return &Scenario{
 		Slug:    "hello-world",
 		Version: "1.0.0",
-		Title:   "欢迎来到 opslabs",
-		Summary: "熟悉平台操作,3 分钟上手第一个任务",
-		DescriptionMd: `# 欢迎来到 opslabs
+		Title:   "第一次见面:在终端里完成一个小任务",
+		Summary: "3 分钟摸清楚左边读题、右边敲命令的节奏",
+		DescriptionMd: `# 第一次见面:在终端里完成一个小任务
 
 你好,欢迎!
 
@@ -151,9 +151,9 @@ func scenarioFrontendDevserverDown() *Scenario {
 	return &Scenario{
 		Slug:    "frontend-devserver-down",
 		Version: "1.0.0",
-		Title:   "本地 dev server 启动失败",
-		Summary: "接手项目跑不起来,排查 Node 版本、依赖、端口、配置",
-		DescriptionMd: `# 本地 dev server 启动失败
+		Title:   "接手新项目跑不起来:前端开发服务器启动失败",
+		Summary: "同事说 `npm run dev` 直接能跑,但你这边一直起不来。原因可能不止一个",
+		DescriptionMd: `# 接手新项目跑不起来:前端开发服务器启动失败
 
 ## 背景
 
@@ -209,9 +209,9 @@ func scenarioBackendAPI500() *Scenario {
 	return &Scenario{
 		Slug:    "backend-api-500",
 		Version: "1.0.0",
-		Title:   "API 总是返回 500",
-		Summary: "用户接口一直 500,看日志、查配置、验证数据库连接",
-		DescriptionMd: `# API 总是返回 500
+		Title:   "后端接口一直 500:用户查询接口挂了",
+		Summary: "服务进程活着、数据库也活着,但 `/users/1` 总是 500。先看日志再下结论",
+		DescriptionMd: `# 后端接口一直 500:用户查询接口挂了
 
 ## 背景
 
@@ -280,9 +280,9 @@ func scenarioCSSFlexCenter() *Scenario {
 	return &Scenario{
 		Slug:    "css-flex-center",
 		Version: "1.0.0",
-		Title:   "CSS Flexbox 水平垂直居中",
-		Summary: "用 flex 把一个元素在容器里居中 —— 最基础但最常问的 CSS 面试题",
-		DescriptionMd: `# CSS Flexbox 水平垂直居中
+		Title:   "把一个方块在盒子里居中(CSS 面试基本功)",
+		Summary: "改 CSS,让蓝色方块在黄色盒子正中间 —— 经典面试题",
+		DescriptionMd: `# 把一个方块在盒子里居中(CSS 面试基本功)
 
 ## 背景
 
@@ -349,18 +349,22 @@ func scenarioWebContainerNodeHello() *Scenario {
 	return &Scenario{
 		Slug:    "webcontainer-node-hello",
 		Version: "1.0.0",
-		Title:   "Node.js 入门:修复 greeting handler",
-		Summary: "浏览器里直接跑 Node,修一个对象字段名拼错的 bug",
-		DescriptionMd: `# Node.js 入门:修复 greeting handler
+		Title:   "改一个 Node 小函数的 bug:返回字段名拼错了",
+		Summary: "一个返回问候语的函数返回了错的字段名,点开 handler.js 找出来改对",
+		DescriptionMd: `# 改一个 Node 小函数的 bug:返回字段名拼错了
 
-## 背景
+## 这是什么环境
 
-你面前是一个极简 Node 项目,跑在**浏览器里的 Node.js runtime**(StackBlitz WebContainer)。
-完全不需要后端容器,连 npm install 都在你的浏览器里跑。
+右边是一个极简 Node 项目,但它跑在一个特别的地方 —— **你的浏览器里**。
+
+通常 Node.js 要装在电脑或服务器上,这里我们用一种叫 WebContainer 的技术
+(StackBlitz 出品)把 Node 整个搬进了浏览器。结果就是:你不需要装 Node,
+连 ` + "`npm install`" + ` 都在浏览器里跑,关掉标签页一切就消失。
 
 ## 你的任务
 
-打开 ` + "`handler.js`" + `,里面有一个默认导出函数:
+打开 ` + "`handler.js`" + `,里面有一个函数。开头的 ` + "`export default`" + ` 表示
+这是这个文件对外提供的"主功能",别的代码要用 ` + "`handler.js`" + `,用的就是它:
 
 ` + "```js" + `
 export default function greet(name) {
@@ -371,16 +375,16 @@ export default function greet(name) {
 判题脚本 ` + "`check.mjs`" + ` 会用 ` + "`name='world'`" + ` 调它,期望返回值是
 ` + "`{ greeting: 'hello world' }`" + `。
 
-**注意字段名是 ` + "`greeting`" + `,不是 ` + "`greet`" + `**。
+**注意字段名是 ` + "`greeting`" + `(完整名词),不是 ` + "`greet`" + `(动词原形)**。
 
-修好后点"检查答案",Runner 会在 WebContainer 里 ` + "`node check.mjs`" + `,
+修好后点"检查答案",Runner 会在浏览器里执行 ` + "`node check.mjs`" + `,
 退出码 0 即通关。
 
 ## 提示
 
-- 打开 ` + "`check.mjs`" + ` 看一眼判题逻辑,比盲改更快
+- 打开 ` + "`check.mjs`" + ` 看一眼判题脚本怎么写的,比盲改更快
 - 终端面板会显示命令输出,报错信息就在那里
-- 改完记得保存(Runner 会把编辑器内容同步回 WebContainer)
+- 改完记得保存(Runner 会把编辑器内容同步回 Node 项目)
 `,
 		Category:         "backend",
 		Difficulty:       1,
@@ -420,18 +424,23 @@ func scenarioWasmLinuxHello() *Scenario {
 	return &Scenario{
 		Slug:    "wasm-linux-hello",
 		Version: "1.0.0",
-		Title:   "wasm Linux 欢迎:touch 一个文件",
-		Summary: "浏览器本地跑 wasm Linux(v86 + BusyBox),touch 一个文件即通关",
-		DescriptionMd: `# wasm Linux 欢迎
+		Title:   "在浏览器里学 Linux:创建你的第一个文件",
+		Summary: "不需要装任何东西,浏览器里就有一个完整 Linux,敲一条命令就过",
+		DescriptionMd: `# 在浏览器里学 Linux:创建你的第一个文件
 
-## 背景
+## 这是什么环境
 
-你右边看到的是一个**完全跑在你浏览器里的 Linux**:
+你右边看到的不是普通网页,而是一个**完全跑在你浏览器里的迷你 Linux 系统**。
+不用装任何软件,关掉这个标签页一切就消失。
 
-- **引擎**:[v86](https://github.com/copy/v86)(GPL 开源的 x86 模拟器,WebAssembly 版)
-- **系统**:BusyBox + musl libc 精简镜像,开机约 3 秒
-- **没有后端容器**:你敲的每一条命令都在你当前这个浏览器 tab 里执行,
-  我们的服务器完全不知情
+它的几个关键事实:
+
+- **Linux 跑在 wasm 里**:wasm 全名 WebAssembly,是浏览器原生支持的"小型虚拟机"。
+  我们用一个叫 [v86](https://github.com/copy/v86) 的开源 x86 模拟器把 Linux 装了进去
+- **系统是精简版**:用的是 BusyBox —— 一个把几十个常用命令塞进单一可执行文件的小工具,
+  常见于路由器、嵌入式设备。开机大约 3 秒
+- **服务器不参与**:你在终端里敲的每一条命令都只在你这个浏览器标签里跑,
+  我们的后端完全不知情
 
 ## 你的任务
 
@@ -449,8 +458,8 @@ Runner 每次点"检查答案"会跑:
 
 ## 提示
 
-- 最常用的命令是 ` + "`touch`" + `
-- 看 ` + "`ls /tmp`" + ` 能不能看到你新建的文件
+- 最常用的命令是 ` + "`touch`" + `(字面意思"摸一下"文件,不存在就创建一个空的)
+- 用 ` + "`ls /tmp`" + ` 看看自己新建的文件在不在
 `,
 		Category:         "ops",
 		Difficulty:       1,
@@ -474,9 +483,9 @@ func scenarioOpsNginxUpstreamFail() *Scenario {
 	return &Scenario{
 		Slug:    "ops-nginx-upstream-fail",
 		Version: "1.0.0",
-		Title:   "Nginx 反代 502 排查",
-		Summary: "Nginx 返回 502,后端明明活着,找出 upstream 问题",
-		DescriptionMd: `# Nginx 反代 502 排查
+		Title:   "网站打不开了:Nginx 报 502 Bad Gateway",
+		Summary: "用户说网站白屏,进去一看是 502。Nginx 和后端进程都在跑,问题在哪?",
+		DescriptionMd: `# 网站打不开了:Nginx 报 502 Bad Gateway
 
 ## 背景
 

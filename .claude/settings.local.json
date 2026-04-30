@@ -3,7 +3,9 @@
     "allow": [
       "Bash(go build *)",
       "Bash(npx tsc *)",
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "Bash(npm run *)",
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }

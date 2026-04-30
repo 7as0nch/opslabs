@@ -105,6 +105,24 @@ export default function Scenario() {
   //           用户点"重新加载 Runner"按钮,不 terminate attempt,只重挂渲染树
   const [runnerResetKey, setRunnerResetKey] = useState(0)
 
+  // 左侧任务详情面板折叠态。默认展开,用户偏好持久化在 localStorage。
+  // 私密模式 / 浏览器禁用存储时读写都包 try-catch,失败静默回退到默认值,
+  // 不影响主流程渲染。
+  const [metaCollapsed, setMetaCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('opslabs.metaCollapsed') === '1'
+    } catch {
+      return false
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem('opslabs.metaCollapsed', metaCollapsed ? '1' : '0')
+    } catch {
+      // ignore — localStorage 不可用时不影响 UI
+    }
+  }, [metaCollapsed])
+
   // 进入场景的 start 分派 —— 沿用上一轮 Task #18 的逻辑,结合 startingRef + phase 守卫
   const startingRef = useRef<string | null>(null)
   const fireStart = useCallback(
@@ -586,9 +604,33 @@ export default function Scenario() {
       )}
 
       {/* ==================== 主体 ==================== */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[22rem_1fr] gap-0 overflow-hidden">
+      <div
+        className={`flex-1 min-h-0 grid grid-cols-1 ${
+          metaCollapsed ? 'md:grid-cols-[2.25rem_1fr]' : 'md:grid-cols-[22rem_1fr]'
+        } gap-0 overflow-hidden`}
+      >
         <aside className="border-r border-slate-200 bg-white min-h-0 overflow-y-auto scroll-thin">
-          <ScenarioMeta scenario={scenario} />
+          {metaCollapsed ? (
+            <button
+              type="button"
+              title="展开任务详情"
+              onClick={() => setMetaCollapsed(false)}
+              className="w-full h-full flex flex-col items-center gap-3 pt-4 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+            >
+              <span aria-hidden>›</span>
+              <span
+                className="select-none tracking-widest"
+                style={{ writingMode: 'vertical-rl' }}
+              >
+                任务详情
+              </span>
+            </button>
+          ) : (
+            <ScenarioMeta
+              scenario={scenario}
+              onCollapse={() => setMetaCollapsed(true)}
+            />
+          )}
         </aside>
         <section className="min-h-0 flex flex-col overflow-hidden">
           <div className="flex-1 min-h-0 bg-slate-900 overflow-hidden">
